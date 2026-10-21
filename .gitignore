@@ -1,0 +1,25 @@
+# Dependencias: se reinstalan con "npm install"
+node_modules/
+
+# Resultado de compilar el frontend
+dist/
+
+# Secretos: nunca van al repositorio. El ejemplo sin valores es .env.ejemplo
+.env
+.env.*
+!.env.ejemplo
+!.env.prueba
+!.env.demo
+
+# Carpeta que crea Vercel al vincular el proyecto
+.vercel/
+
+# Archivos del sistema y del editor
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+.claude/
+
+# Videos de demostracion: pesan mucho y no son codigo.
+*.mp4

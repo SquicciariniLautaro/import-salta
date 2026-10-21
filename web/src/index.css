@@ -1,0 +1,436 @@
+@import 'tailwindcss';
+
+/* ---------------------------------------------------------------------------
+   COLORES DEL SITIO: fondo negro y letras blancas.
+
+   El panel se escribio con la paleta comun de Tailwind pensada para fondo
+   blanco ("bg-white" para las tarjetas, "text-neutral-500" para lo
+   secundario, "bg-black" para los botones principales). En vez de cambiar
+   cada pantalla, aca se dan vuelta esos colores para todo el sitio:
+     * los grises (neutral-50 a neutral-950) van de oscuro a claro;
+     * "white" es la superficie de las tarjetas (gris casi negro);
+     * "black" es la tinta (blanco apenas gris), que es tambien el color de
+       los botones principales;
+     * rojos, verdes, ambar y azules: los fondos suaves pasan a ser tonos
+       oscuros y los textos, tonos claros que se leen sobre negro.
+   Para el negro y el blanco de verdad estan "negro" y "blanco"
+   (bg-negro, text-blanco).
+
+   Lo que se imprime (tickets, etiquetas, actas de garantia) vuelve a la
+   paleta original dentro de ".papel": sale negro sobre blanco.
+   --------------------------------------------------------------------------- */
+@theme {
+  /* Poppins como fuente de todo el sitio. Los archivos de la fuente se cargan
+     desde main.jsx y viajan con el sitio (no se piden a Google). */
+  --font-sans: 'Poppins', ui-sans-serif, system-ui, sans-serif;
+
+  --color-negro: #000;
+  --color-blanco: #fff;
+  /* Los colores del catalogo, tomados de lo que mando el cliente. */
+  --color-superficie: #161618;
+  --color-borde: #2a2a2e;
+  --color-oro: #c9a96e;
+  --color-azul: #5b82ff;
+  --color-verde: #5fcf6b;
+
+  --color-white: #141416;
+  --color-black: #f5f5f7;
+
+  --color-neutral-50: #1a1a1d;
+  --color-neutral-100: #202024;
+  --color-neutral-200: #2c2c31;
+  --color-neutral-300: #3d3d43;
+  --color-neutral-400: #6e6e76;
+  --color-neutral-500: #9a9aa2;
+  --color-neutral-600: #b0b0b8;
+  --color-neutral-700: #c8c8ce;
+  --color-neutral-800: #e0e0e4;
+  --color-neutral-900: #f0f0f2;
+  --color-neutral-950: #fafafa;
+
+  --color-red-50: #2a1214;
+  --color-red-100: #3a1619;
+  --color-red-200: #5c1d22;
+  --color-red-600: #f87171;
+  --color-red-700: #f87171;
+  --color-red-800: #fca5a5;
+  --color-green-50: #0f2416;
+  --color-green-100: #143020;
+  --color-green-700: #5fcf6b;
+  --color-green-800: #86efac;
+  --color-amber-50: #2a2008;
+  --color-amber-100: #3a2c0a;
+  --color-amber-200: #5c4410;
+  --color-amber-300: #7a5a14;
+  --color-amber-700: #fbbf24;
+  --color-amber-800: #fcd34d;
+  --color-amber-900: #fde68a;
+  --color-blue-50: #0f1d33;
+  --color-blue-700: #7ea2ff;
+  --color-blue-800: #a9c1ff;
+
+  /* Aparicion suave del contenido cuando termina de cargar. */
+  --animate-aparecer: aparecer 0.35s ease-out both;
+
+  @keyframes aparecer {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background-color: #000;
+  color: #f5f5f7;
+  /* Cinturon de seguridad contra el scroll horizontal en celulares. */
+  overflow-x: hidden;
+}
+
+/* Lo que va al papel vuelve a la paleta de siempre: negro sobre blanco. */
+.papel {
+  --color-white: #fff;
+  --color-black: #000;
+  --color-neutral-50: #fafafa;
+  --color-neutral-100: #f5f5f5;
+  --color-neutral-200: #e5e5e5;
+  --color-neutral-300: #d4d4d4;
+  --color-neutral-400: #a3a3a3;
+  --color-neutral-500: #737373;
+  --color-neutral-600: #525252;
+  --color-neutral-700: #404040;
+  --color-neutral-800: #262626;
+  --color-neutral-900: #171717;
+  --color-neutral-950: #0a0a0a;
+  color-scheme: light;
+  background: #fff;
+  color: #000;
+}
+
+/* ---------------------------------------------------------------------------
+   Piezas que se repiten en todo el sitio. Se definen una vez aca para que
+   todos los botones y campos se vean y se muevan igual.
+   El "brillo" es una sombra de color que aparece al pasar el mouse. Va dentro
+   de @media (hover: hover) para que en los celulares, donde no hay mouse, no
+   quede prendido despues de tocar.
+   --------------------------------------------------------------------------- */
+@layer components {
+  .boton {
+    @apply inline-flex min-w-0 cursor-pointer items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold select-none;
+    transition:
+      box-shadow 0.25s ease,
+      transform 0.15s ease,
+      background-color 0.2s ease,
+      border-color 0.2s ease,
+      color 0.2s ease;
+  }
+  .boton:active {
+    transform: scale(0.97);
+  }
+  .boton:disabled {
+    @apply pointer-events-none opacity-50;
+  }
+
+  /* El boton principal: blanco con letras negras. */
+  .boton-oscuro {
+    background-color: #f5f5f7;
+    color: #000;
+  }
+  /* El secundario: con borde, sobre el fondo. */
+  .boton-claro {
+    @apply border border-neutral-300 bg-white text-neutral-900;
+  }
+  /* Para usar sobre el encabezado negro del panel. */
+  .boton-blanco {
+    background-color: #fff;
+    color: #000;
+  }
+  .boton-fantasma {
+    @apply border border-neutral-300 bg-transparent text-neutral-900;
+  }
+  .boton-verde {
+    @apply bg-verde;
+    color: #04130a;
+  }
+  .boton-peligro {
+    @apply border border-red-200 bg-white text-red-700;
+  }
+  .boton-chico {
+    @apply px-2.5 py-1.5 text-xs;
+  }
+
+  @media (hover: hover) {
+    .boton-oscuro:hover {
+      background-color: #fff;
+      box-shadow: 0 0 22px -6px rgb(255 255 255 / 0.55);
+    }
+    .boton-claro:hover {
+      @apply border-neutral-600;
+      box-shadow: 0 0 18px -8px rgb(255 255 255 / 0.35);
+    }
+    .boton-blanco:hover {
+      box-shadow: 0 0 20px -2px rgb(255 255 255 / 0.6);
+    }
+    .boton-fantasma:hover {
+      @apply border-neutral-700;
+      box-shadow: 0 0 16px -4px rgb(255 255 255 / 0.4);
+    }
+    .boton-verde:hover {
+      box-shadow: 0 0 22px -3px rgb(95 207 107 / 0.6);
+    }
+    .boton-peligro:hover {
+      @apply border-red-600 bg-red-50;
+      box-shadow: 0 0 18px -8px rgb(248 113 113 / 0.5);
+    }
+  }
+
+  /* Campos de texto. text-base (16 px) en celular: con menos, iOS agranda la
+     pagina al tocar el campo y no vuelve solo. */
+  .campo {
+    @apply w-full min-w-0 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-base text-neutral-900 md:text-sm;
+    transition:
+      border-color 0.2s ease,
+      box-shadow 0.2s ease;
+  }
+  .campo::placeholder {
+    @apply text-neutral-400;
+  }
+  .campo:focus {
+    @apply border-neutral-700 outline-none;
+    box-shadow: 0 0 0 3px rgb(255 255 255 / 0.08);
+  }
+  .campo:disabled {
+    @apply bg-neutral-100 text-neutral-500;
+  }
+
+  .etiqueta {
+    @apply block min-w-0 text-xs font-medium text-neutral-600;
+  }
+
+  .tarjeta {
+    @apply rounded-xl border border-neutral-200 bg-white;
+  }
+
+  /* Renglones de una lista que reaccionan al pasar el mouse. */
+  .renglon {
+    transition: background-color 0.2s ease;
+  }
+  @media (hover: hover) {
+    .renglon:hover {
+      @apply bg-neutral-50;
+    }
+  }
+
+  /* Enlace con una raya que se dibuja de izquierda a derecha. */
+  .enlace-raya {
+    background-image: linear-gradient(currentColor, currentColor);
+    background-repeat: no-repeat;
+    background-position: 0 100%;
+    background-size: 0% 1px;
+    transition:
+      background-size 0.3s ease,
+      color 0.2s ease;
+  }
+  @media (hover: hover) {
+    .enlace-raya:hover {
+      background-size: 100% 1px;
+    }
+  }
+
+  /* La lambda del pie de pagina. */
+  .lambda {
+    transition:
+      text-shadow 0.3s ease,
+      transform 0.3s ease;
+  }
+  @media (hover: hover) {
+    .grupo-firma:hover .lambda {
+      text-shadow: 0 0 14px rgb(250 204 21 / 0.9);
+      transform: translateY(-1px) scale(1.08);
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Presentacion del catalogo: el logo aparece al entrar.
+   La manzana sube apenas y crece un poco; el nombre aparece despues. Todo dura
+   poco mas de un segundo y despues la portada se desvanece y queda el
+   catalogo. No se repite al cambiar de pestana ni al buscar.
+   --------------------------------------------------------------------------- */
+/* Solo opacidad y movimiento: el celular los anima sin esfuerzo aunque la
+   pagina este ocupada cargando (un desenfoque, en cambio, se traba). */
+@keyframes logo-manzana {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes logo-nombre {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes portada-salir {
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+@keyframes subir {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.portada {
+  animation: portada-salir 0.5s ease 1.5s forwards;
+}
+.portada-manzana {
+  animation: logo-manzana 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.portada-nombre {
+  animation: logo-nombre 0.7s ease-out 0.45s both;
+}
+/* El logo chico del encabezado del catalogo, cuando la portada se va. */
+.encabezado-logo {
+  animation: subir 0.6s ease-out 1.6s both;
+}
+
+/* ---------------------------------------------------------------------------
+   Impresion de tickets, etiquetas y actas de garantia.
+   Lo que se imprime se dibuja dos veces: una dentro de la ventana, como vista
+   previa, y otra en ".zona-impresion", que cuelga directo de <body>. En la
+   pantalla esa zona esta escondida; al imprimir se esconde todo lo demas y
+   queda sola. Asi el papel no sale con el panel de fondo.
+   --------------------------------------------------------------------------- */
+.zona-impresion {
+  display: none;
+}
+
+/* Un ticket: letra comun del sistema (las impresoras termicas la dejan mas
+   nitida que una fuente fina) y todo en negro puro. */
+.ticket {
+  box-sizing: border-box;
+  max-width: 100%;
+  padding: 3mm;
+  background: #fff;
+  color: #000;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 11px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+/* Con hojas cortas (50 x 60 mm) un ticket ocupa varias: ningun renglon se
+   corta por la mitad entre una hoja y la siguiente. */
+.ticket > * {
+  break-inside: avoid;
+}
+
+/* Una etiqueta: una pagina por etiqueta. */
+.etiqueta-impresa {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+  padding: 1.5mm 2mm;
+  background: #fff;
+  color: #000;
+  font-family: Arial, Helvetica, sans-serif;
+  line-height: 1.15;
+  text-align: center;
+  break-after: page;
+  page-break-after: always;
+}
+
+/* El acta de entrega y garantia: una hoja A4 con la revision y las firmas. */
+.acta {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 190mm;
+  padding: 8mm;
+  background: #fff;
+  color: #000;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.acta table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.acta td,
+.acta th {
+  border: 1px solid #000;
+  padding: 1.5mm 2mm;
+  text-align: left;
+  vertical-align: top;
+}
+.acta th {
+  white-space: nowrap;
+}
+.acta .firma {
+  break-inside: avoid;
+}
+
+@media print {
+  body > *:not(.zona-impresion) {
+    display: none !important;
+  }
+  .zona-impresion {
+    display: block;
+  }
+  html,
+  body {
+    min-height: 0;
+    background: #fff;
+    color: #000;
+    /* La ventana abierta le pone overflow: hidden al body; al imprimir cortaria el papel. */
+    overflow: visible !important;
+  }
+  /* La hoja no tiene margen (ver @page): el margen lo pone el acta. */
+  .acta {
+    max-width: none;
+    padding: 12mm;
+  }
+}
+
+/* Quien pidio menos movimiento en su sistema no ve animaciones. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+    transition-duration: 0.01ms !important;
+  }
+}

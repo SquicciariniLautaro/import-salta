@@ -1,0 +1,37 @@
+{
+  "name": "import-salta-web",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:prueba": "vite --mode prueba",
+    "build": "vite build",
+    "build:demo": "vite build --mode demo && node scripts/pagina-404.js",
+    "lint": "oxlint",
+    "preview": "vite preview",
+    "probar": "node scripts/probar-servicios.js",
+    "probar-base": "node scripts/probar-base.js",
+    "probar-seguridad": "node scripts/probar-seguridad.js"
+  },
+  "dependencies": {
+    "@fontsource/poppins": "^5.3.0",
+    "@supabase/supabase-js": "^2.117.3",
+    "@zxing/browser": "^0.2.1",
+    "@zxing/library": "^0.23.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-hot-toast": "^2.6.1",
+    "react-router": "^8.4.0",
+    "recharts": "^3.10.1"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.9",
+    "@tailwindcss/vite": "^4.3.3",
+    "@vitejs/plugin-react": "^6.1.2",
+    "lightningcss": "^1.33.0",
+    "oxlint": "^1.87.0",
+    "tailwindcss": "^4.3.3",
+    "vite": "^8.3.4"
+  }
+}

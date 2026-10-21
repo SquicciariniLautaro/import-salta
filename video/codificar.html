@@ -1,0 +1,58 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>codificando</title>
+<style>
+  body { margin: 0; background: #000; }
+</style>
+<canvas id="lienzo" width="1280" height="720"></canvas>
+<script>
+  // Vuelve a "reproducir" los cuadros capturados en tiempo real sobre un canvas
+  // y lo graba con MediaRecorder (MP4 H.264 si Chrome lo soporta).
+  (async () => {
+    const { cuadros, fin } = await (await fetch("/cuadros.json")).json();
+    const lienzo = document.getElementById("lienzo");
+    const ctx = lienzo.getContext("2d");
+    const tipos = ["video/mp4;codecs=avc1.640028", "video/mp4;codecs=avc1.42E01F", "video/mp4", "video/webm;codecs=vp9", "video/webm"];
+    const tipo = tipos.find((t) => MediaRecorder.isTypeSupported(t));
+    const grabador = new MediaRecorder(lienzo.captureStream(30), { mimeType: tipo, videoBitsPerSecond: 8_000_000 });
+    const partes = [];
+    grabador.ondataavailable = (e) => e.data.size && partes.push(e.data);
+
+    const cargar = (archivo) =>
+      new Promise((ok, mal) => {
+        const img = new Image();
+        img.onload = () => ok(img);
+        img.onerror = mal;
+        img.src = "/cuadros/" + archivo;
+      });
+    const cache = new Map();
+    const pedir = (i) => {
+      if (i < cuadros.length && !cache.has(i)) cache.set(i, cargar(cuadros[i].f));
+    };
+    for (let i = 0; i < 60; i++) pedir(i);
+
+    let actual = await cache.get(0);
+    const pintar = () => ctx.drawImage(actual, 0, 0, 1280, 720);
+    pintar();
+    grabador.start(1000);
+    const t0 = performance.now();
+    const repintar = setInterval(pintar, 33);
+    for (let i = 0; i < cuadros.length; i++) {
+      pedir(i + 60);
+      const img = await cache.get(i);
+      cache.delete(i);
+      const espera = t0 + cuadros[i].t * 1000 - performance.now();
+      if (espera > 0) await new Promise((r) => setTimeout(r, espera));
+      actual = img;
+      pintar();
+    }
+    const resto = t0 + fin * 1000 - performance.now();
+    if (resto > 0) await new Promise((r) => setTimeout(r, resto));
+    clearInterval(repintar);
+    const parado = new Promise((r) => (grabador.onstop = r));
+    grabador.stop();
+    await parado;
+    await fetch("/resultado?tipo=" + encodeURIComponent(tipo), { method: "POST", body: new Blob(partes, { type: tipo }) });
+    document.title = "listo";
+  })().catch((e) => fetch("/error", { method: "POST", body: String((e && e.stack) || e) }));
+</script>

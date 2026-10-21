@@ -1,0 +1,5 @@
+# Fines de linea iguales en Windows y en el servidor (Linux).
+* text=auto eol=lf
+*.jpg binary
+*.png binary
+*.woff2 binary
