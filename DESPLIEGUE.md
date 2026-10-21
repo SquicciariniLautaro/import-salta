@@ -151,7 +151,7 @@ update public.configuracion set cuotas_planes = '[]'::jsonb where id = 1;
 
 Mientras no esté Supabase, el cliente puede probar todo en
 `https://squicciarinilautaro.github.io/import-salta/`. Es el sitio en modo prueba (stock
-inventado, ingreso con cualquier dato, todo vuelve a cero al recargar). Lo publica solo
+inventado, se entra al panel con `admin@admin.com` y `admin123`, todo vuelve a cero al recargar). Lo publica solo
 `.github/workflows/boceto.yml` con cada push a `main`; GitHub Pages tiene que estar en
 `Settings` → `Pages` → *Source*: **GitHub Actions**.
 

@@ -75,8 +75,8 @@ npm run dev            # queda en http://localhost:5173
 ## Boceto en GitHub Pages
 
 `https://squicciarinilautaro.github.io/import-salta/` es el sistema entero en modo prueba,
-para mostrárselo al cliente: stock inventado, el ingreso al panel acepta cualquier correo
-y contraseña, y todo vuelve a cero al recargar la página. No usa Supabase.
+para mostrárselo al cliente: stock inventado, el panel se abre con `admin@admin.com` / `admin123`
+y todo vuelve a cero al recargar la página. No usa Supabase.
 
 ## Publicar el sitio real
 
