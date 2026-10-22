@@ -12,7 +12,13 @@
 
 import { PGlite } from '@electric-sql/pglite'
 import { ADMIN_DE_PRUEBA, crearBaseLocal } from './baseLocal.js'
-import semilla from '../../../supabase/datos_prueba.sql?raw'
+import semillaDePrueba from '../../../supabase/datos_prueba.sql?raw'
+import semillaDelVideo from '../../../video/datos_video.sql?raw'
+
+// Con VITE_SEMILLA=video (lo pone la grabacion del video guia) la base arranca
+// con el stock del cliente y precios de ejemplo; si no, con el stock inventado
+// de las pruebas.
+const semilla = import.meta.env.VITE_SEMILLA === 'video' ? semillaDelVideo : semillaDePrueba
 
 // Vite trae el texto de todas las migraciones; se ordenan por nombre de archivo.
 const archivos = import.meta.glob('../../../supabase/migrations/*.sql', {

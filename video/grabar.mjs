@@ -1,5 +1,6 @@
 // video/grabar.mjs
-// Graba el video tutorial del sistema de Import Salta, punto por punto.
+// Graba el video guia del sistema de Import Salta para el cliente, punto por
+// punto, con su stock y precios de ejemplo (video/datos_video.sql).
 //
 //   node video/grabar.mjs              (desde la carpeta del proyecto)
 //   SIN_VIDEO=1 node video/grabar.mjs  (recorre el guion sin grabar, para probarlo)
@@ -9,7 +10,7 @@
 // panel con un cursor y subtitulos (video/escena.js), captura la pantalla y la
 // codifica a MP4 con el mismo Chrome (video/codificar.html). No necesita
 // instalar nada: usa Node, Chrome y el protocolo de DevTools.
-// El video queda en la raiz del proyecto (tutorial-import-salta.mp4), fuera de git.
+// El video queda en la raiz del proyecto (guia-import-salta.mp4), fuera de git.
 
 import { spawn, execSync } from 'node:child_process'
 import { createServer } from 'node:http'
@@ -26,14 +27,17 @@ const PUERTO_COD = 5191
 const APP = `http://localhost:${PUERTO_APP}`
 const TMP = process.env.DEMO_TMP || path.join(os.tmpdir(), 'import-salta-video')
 const CUADROS = path.join(TMP, 'cuadros')
-const SALIDA = path.join(AQUI, '..', 'tutorial-import-salta')
+const SALIDA = path.join(AQUI, '..', 'guia-import-salta')
 const CHROME = [
   process.env.CHROME,
   'C:/Program Files/Google/Chrome/Application/chrome.exe',
   'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
 ].find((p) => p && fs.existsSync(p))
 
-const dormir = (ms) => new Promise((r) => setTimeout(r, ms))
+// RITMO estira todas las pausas: el video es para el cliente y tiene que dar
+// tiempo a leer cada subtitulo con calma.
+const RITMO = 1.2
+const dormir = (ms) => new Promise((r) => setTimeout(r, ms * RITMO))
 const J = JSON.stringify
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a)
 
@@ -199,8 +203,8 @@ async function irAPestana(nombre, texto, titulo) {
 async function guion() {
   // ---- Presentacion ----
   await ir(`${APP}/`)
-  await cartel('Import Salta', 'Cómo se usa el sistema, paso a paso', 'Catálogo público y panel de administración · los datos de este video son de prueba')
-  await dormir(5000)
+  await cartel('Import Salta', 'Guía del sistema, paso a paso', 'El catálogo para tus clientes y el panel del local. Los precios de este video son de ejemplo')
+  await dormir(6000)
   await sinCartel()
 
   // ---- 1. El catalogo ----
@@ -341,7 +345,29 @@ async function guion() {
   await leyenda('El <b>costo</b> se pasa a pesos con el dólar costo; el <b>minorista</b>, con el dólar venta', '5 · Stock')
   await dormir(4500)
   await sinMarca()
-  await leyenda('Para cargar equipos: <b>+ Ingresar</b>', 'Cargar stock')
+
+  // Lo que mas va a usar al principio: ponerle precio a lo que ya esta cargado.
+  await leyenda('Lo más importante: <b>el precio</b>. Un equipo con precio 0 <b>no aparece en el catálogo</b>, como este iPhone 13 mini', 'Poner precio')
+  await clic(`D.el('button', 'iPhone 13 MINI')`)
+  await dormir(900)
+  await clic(`D.el('button', 'iPhone 13 MINI').parentElement.querySelectorAll('button')[1]`)
+  await dormir(1500)
+  await leyenda('Se abre el modelo y se toca <b>Editar</b>', 'Poner precio')
+  await clic(`[...D.el('button', 'iPhone 13 MINI').parentElement.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Editar')`)
+  await esperar(VENTANA)
+  await dormir(1000)
+  await leyenda('Se escribe el <b>precio en dólares</b> (y el costo, si cambió). Debajo se ve cuánto da en pesos', 'Poner precio')
+  await foco(campo('Precio minorista (USD)'))
+  await d(`document.execCommand('selectAll')`)
+  await escribir('400', 220)
+  await dormir(2500)
+  await clic(boton('Guardar cambios', VENTANA))
+  await dormir(1800)
+  await leyenda('Listo: desde ahora <b>aparece en el catálogo</b>, con su precio en pesos y sus cuotas', 'Poner precio')
+  await dormir(4500)
+
+  await leyenda('Para cargar equipos nuevos: <b>+ Ingresar</b>', 'Cargar stock')
+  await scroll(0)
   await clic(boton('+ Ingresar'))
   await esperar(VENTANA)
   await dormir(800)
@@ -543,8 +569,8 @@ async function guion() {
   await dormir(4500)
   await d(`D.sinLeyenda()`)
 
-  await cartel('Import Salta', 'Catálogo con cuotas · Stock y ventas · Garantías firmadas', 'Datos de prueba. Desarrollado por Lambda Soluciones Digitales')
-  await dormir(5500)
+  await cartel('import-salta.vercel.app', 'Catálogo: la dirección de siempre · Panel: /admin', 'Cualquier duda, escribinos. Desarrollado por Lambda Soluciones Digitales')
+  await dormir(7000)
 }
 
 // ---------------------------------------------------------------------------
@@ -586,7 +612,13 @@ async function principal() {
   fs.mkdirSync(CUADROS, { recursive: true })
 
   log('Levantando el sitio en modo prueba…')
-  const vite = spawn(`npx vite --mode prueba --port ${PUERTO_APP} --strictPort`, { cwd: WEB, shell: true, stdio: 'ignore' })
+  // VITE_SEMILLA=video: la base de mentira arranca con el stock del cliente (ver pruebas/modoPrueba.js).
+  const vite = spawn(`npx vite --mode prueba --port ${PUERTO_APP} --strictPort`, {
+    cwd: WEB,
+    shell: true,
+    stdio: 'ignore',
+    env: { ...process.env, VITE_SEMILLA: 'video' },
+  })
   procesos.push(vite)
   await esperarUrl(APP)
 
