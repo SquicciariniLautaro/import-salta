@@ -33,11 +33,12 @@ Panel     ── HTTPS ──> DolarApi (cotización del blue, solo al tocar el 
 | `web/` | Frontend: React 19, Vite, Tailwind v4. |
 | `web/src/Catalogo.jsx` | El catálogo público, con la portada del logo y las cuotas. |
 | `video/` | El guion que graba el video tutorial (`node video/grabar.mjs`). El video queda en la raíz, fuera de git. |
-| `.github/workflows/boceto.yml` | Publica el boceto en GitHub Pages con cada push a `main`. |
 | `web/src/panel/` | Las pantallas del panel. `Acta.jsx` y `Firma.jsx` son el acta y las firmas. |
 | `web/src/servicios/` | Cálculo puro: precios, cuotas, actas y firmas, cuentas, ventas, caja, garantías, ticket y código de barras. |
 | `web/public/` | El logo (manzana y nombre por separado para la animación, y la versión para imprimir). |
 | `supabase/migrations/` | El esquema de la base y sus permisos, en archivos numerados. |
+| `supabase/stock_inicial.sql` | El stock real del cliente, para cargar una sola vez después de las migraciones. |
+| `supabase/datos_prueba.sql` | Stock inventado que usan solo las pruebas y el modo prueba de tu PC. Nunca va a Supabase. |
 
 La seguridad vive en la base: un visitante solo puede llamar a `catalogo_publico()`, y las
 tablas solo las ven los usuarios cuyo correo figura en `administradores`.
@@ -69,15 +70,8 @@ npm run dev            # queda en http://localhost:5173
 | `npm run probar-base` | Aplica las migraciones en un Postgres de prueba dentro de tu PC y revisa permisos y reglas de negocio. |
 | `npm run probar-seguridad` | Las pruebas de seguridad contra el proyecto real de Supabase. |
 | `npm run lint` | Revisa el código. |
-| `npm run build` | Compila en `web/dist` el sitio real (el que va a Vercel, con Supabase). |
-| `npm run build:demo` | Compila el boceto para GitHub Pages: el sitio en modo prueba, con la base de mentira adentro, en la carpeta `/import-salta/`. |
+| `npm run build` | Compila en `web/dist`. |
 
-## Boceto en GitHub Pages
-
-`https://squicciarinilautaro.github.io/import-salta/` es el sistema entero en modo prueba,
-para mostrárselo al cliente: stock inventado, el panel se abre con `admin@admin.com` / `admin123`
-y todo vuelve a cero al recargar la página. No usa Supabase.
-
-## Publicar el sitio real
+## Publicar
 
 Ver [DESPLIEGUE.md](DESPLIEGUE.md).

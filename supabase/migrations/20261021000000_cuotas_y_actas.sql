@@ -529,7 +529,9 @@ $$;
 
 -- ---------------------------------------------------------------------------
 -- El catalogo publico, igual que antes, mas los planes de cuotas y su
--- leyenda. Son datos publicos: los ve cualquiera.
+-- leyenda (son datos publicos: los ve cualquiera). Ademas, lo que todavia no
+-- tiene precio no se publica: asi se puede cargar el stock y ponerle precio
+-- despues sin que el catalogo muestre "$ 0".
 -- ---------------------------------------------------------------------------
 create or replace function public.catalogo_publico()
 returns jsonb
@@ -559,7 +561,7 @@ as $$
                    count(*)::int   as cantidad,
                    sum(precio_usd) as suma_precio
               from public.celulares
-             where estado = 'disponible'
+             where estado = 'disponible' and precio_usd > 0
              group by clave
           ) fila
       ), '[]'::jsonb),
@@ -576,7 +578,7 @@ as $$
                    count(*)::int   as cantidad,
                    sum(precio_usd) as suma_precio
               from public.accesorios
-             where estado = 'disponible'
+             where estado = 'disponible' and precio_usd > 0
              group by clave
           ) fila
       ), '[]'::jsonb),

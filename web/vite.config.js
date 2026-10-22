@@ -15,10 +15,7 @@ const NAVEGADORES_CSS = {
 }
 
 // https://vite.dev/config/
-// mode 'demo' (npm run build:demo) es el boceto para GitHub Pages: trae la base
-// de mentira del modo prueba y vive en la carpeta /import-salta/ del sitio.
-export default defineConfig(({ mode }) => ({
-  base: mode === 'demo' ? '/import-salta/' : '/',
+export default defineConfig({
   plugins: [react(), tailwindcss()],
 
   css: {
@@ -37,4 +34,4 @@ export default defineConfig(({ mode }) => ({
     // Lo mismo para el JavaScript: no usar sintaxis mas nueva que estos navegadores.
     target: ['chrome100', 'firefox100', 'safari15'],
   },
-}))
+})

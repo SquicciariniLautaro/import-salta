@@ -13,9 +13,9 @@ export const NEGOCIO = {
   posnet: 'Payway',
 }
 
-// Direccion de un archivo de web/public/ (el logo, los iconos). El sitio real
-// vive en la raiz del dominio, pero el boceto de GitHub Pages vive en
-// /import-salta/: Vite pone esa carpeta en BASE_URL.
+// Direccion de un archivo de web/public/ (el logo, los iconos). Si algun dia
+// el sitio vive en una carpeta y no en la raiz del dominio, Vite la pone en
+// BASE_URL y esto la respeta.
 export const rutaPublica = (archivo) => `${import.meta.env.BASE_URL}${archivo}`
 
 // Firma del desarrollador en el pie de pagina.

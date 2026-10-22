@@ -18,11 +18,9 @@ export const SUPABASE = {
 }
 
 // Modo prueba: una base de mentira dentro del navegador (ver
-// pruebas/modoPrueba.js). Existe en desarrollo (npm run dev:prueba) y en el
-// boceto para GitHub Pages (npm run build:demo). Al compilar el sitio real
-// esto vale false y Vite descarta todo ese codigo.
-export const MODO_PRUEBA =
-  (import.meta.env.DEV || import.meta.env.MODE === 'demo') && import.meta.env.VITE_MODO_PRUEBA === '1'
+// pruebas/modoPrueba.js). Solo existe en desarrollo (npm run dev:prueba); al
+// compilar el sitio esto vale false y Vite descarta todo ese codigo.
+export const MODO_PRUEBA = import.meta.env.DEV && import.meta.env.VITE_MODO_PRUEBA === '1'
 
 // Error con el mensaje para mostrar y el codigo HTTP (0 = no hubo respuesta).
 export class ErrorApi extends Error {
@@ -35,9 +33,9 @@ export class ErrorApi extends Error {
 export const SIN_CONEXION = 'No hay conexión. Revisá la señal y probá de nuevo.'
 
 export async function obtenerCatalogo() {
-  // La condicion va escrita aca mismo para que, al compilar el sitio real,
-  // Vite vea un "false" y descarte este bloque con todo lo que importa.
-  if ((import.meta.env.DEV || import.meta.env.MODE === 'demo') && MODO_PRUEBA) {
+  // "import.meta.env.DEV &&" va escrito aca mismo para que, al compilar el
+  // sitio, Vite vea un "false" y descarte este bloque con todo lo que importa.
+  if (import.meta.env.DEV && MODO_PRUEBA) {
     const { rpcDePrueba } = await import('./pruebas/modoPrueba.js')
     return armarCatalogo(await rpcDePrueba('catalogo_publico', {}, { anonimo: true }))
   }

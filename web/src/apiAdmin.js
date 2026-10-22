@@ -39,8 +39,8 @@ function traducirError(error, estado) {
 
 // Llama a una funcion de la base y devuelve su resultado, o tira un ErrorApi.
 async function llamar(nombre, argumentos = {}) {
-  // Ver la nota sobre esta condicion en api.js.
-  if ((import.meta.env.DEV || import.meta.env.MODE === 'demo') && MODO_PRUEBA) {
+  // Ver la nota sobre import.meta.env.DEV en api.js.
+  if (import.meta.env.DEV && MODO_PRUEBA) {
     const { rpcDePrueba } = await import('./pruebas/modoPrueba.js')
     try {
       return await rpcDePrueba(nombre, argumentos)
@@ -63,11 +63,6 @@ const ERROR_INICIO = 'Correo o contraseña incorrectos'
 // En modo prueba la "sesion" es una marca en la memoria de la pestana.
 const MARCA_PRUEBA = 'sesion-de-prueba'
 
-// El usuario del boceto de GitHub Pages, para que el cliente lo pruebe. No es
-// un usuario de verdad: el boceto no tiene base real y sus datos son de
-// mentira. En "npm run dev:prueba" sigue entrando cualquier dato.
-const USUARIO_DEL_BOCETO = { correo: 'admin@admin.com', clave: 'admin123' }
-
 // Dice si hay una sesion abierta y es de un administrador.
 export async function verSesion() {
   if (MODO_PRUEBA) {
@@ -87,11 +82,7 @@ export async function verSesion() {
 
 export async function iniciarSesion(correo, clave) {
   if (MODO_PRUEBA) {
-    // En el boceto entra solo su usuario; en desarrollo, cualquiera.
-    const esBoceto = import.meta.env.MODE === 'demo'
-    if (esBoceto && (correo.trim().toLowerCase() !== USUARIO_DEL_BOCETO.correo || clave !== USUARIO_DEL_BOCETO.clave)) {
-      throw new ErrorApi(ERROR_INICIO, 401)
-    }
+    // Cualquier correo y contrasena entran: los datos son de mentira.
     sessionStorage.setItem(MARCA_PRUEBA, correo.trim() || 'prueba@local')
     return { activa: true, correo: sessionStorage.getItem(MARCA_PRUEBA) }
   }

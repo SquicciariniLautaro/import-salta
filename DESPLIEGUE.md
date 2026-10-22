@@ -24,9 +24,9 @@ Los nombres de botones pueden variar según la versión del panel de Supabase y 
 4. `Create new project` y esperá un par de minutos.
 
 A tener en cuenta del plan gratuito: admite dos proyectos activos, **pausa el proyecto
-si pasa una semana sin uso** y no hace copias de seguridad automáticas. Para mostrar un
-boceto alcanza; antes de cargar el stock real conviene pasar a Pro o definir cómo se
-hacen las copias (las actas firmadas viven acá).
+si pasa una semana sin uso** y no hace copias de seguridad automáticas. Con el stock real
+y las actas firmadas conviene el plan Pro: no se pausa y guarda una copia por día durante
+7 días.
 
 ## Paso 2 - Crear las tablas y los permisos
 
@@ -84,10 +84,11 @@ toca nada.
 
 ## Paso 5 - Publicar el sitio en Vercel
 
-1. Subí esta carpeta a un repositorio privado de GitHub (`import-salta`).
-2. vercel.com → `Add New...` → `Project` → elegí el repositorio → `Import`.
-3. *Root Directory*: `web` (ahí está `vercel.json`). *Framework Preset*: Vite.
-4. Antes de `Deploy`, en *Environment Variables* agregá las dos de abajo.
+El proyecto `import-salta` de Vercel ya está creado y conectado al repositorio de GitHub
+`SquicciariniLautaro/import-salta` (*Root Directory*: `web`). Cada push a `main` se
+publica solo. Falta cargarle las dos variables de abajo: en vercel.com → proyecto
+`import-salta` → `Settings` → `Environment Variables`, para *Production* y *Preview*.
+Hasta que estén, la página dice "No pudimos cargar el catálogo".
 
 En Supabase: `Project Settings` → `API Keys` (o el botón `Connect`). Copiá:
 
@@ -124,16 +125,22 @@ Entrando al panel (`/admin`) → `Ajustes`:
 Y arriba, en el encabezado: el dólar de venta. *Usar el dólar blue de hoy* lo trae de
 DolarApi; después hay que tocar `Guardar`.
 
-## Paso 7 - Stock de prueba (opcional)
+## Paso 7 - Cargar el stock del cliente
 
-Para mostrar un boceto con el catálogo lleno: pegá `supabase/datos_prueba.sql` en el
-`SQL Editor` y `Run`. También carga cuatro planes de cuotas de ejemplo (con recargos
-inventados). Para borrarlo antes de cargar el stock real:
+`supabase/stock_inicial.sql` tiene el stock que pasó el cliente el 2026-10-22: 12
+celulares y 340 accesorios (fundas, vidrios, EarPods, cargadores y cables). Se pega **una
+sola vez** en el `SQL Editor` → `Run`, después de las 9 migraciones. Si se corre dos
+veces, el stock queda duplicado.
 
-```sql
-truncate public.celulares, public.accesorios, public.escalas_precio restart identity;
-update public.configuracion set cuotas_planes = '[]'::jsonb where id = 1;
-```
+- Entra todo con costo y precio en 0, porque el cliente no los pasó. **Lo que tiene
+  precio 0 no aparece en el catálogo.** El precio se carga en el panel: `Celulares` (o
+  `Accesorios`) → abrir el modelo → `Editar` → costo y precio minorista en dólares →
+  `Guardar cambios`. Desde ese momento sale en el catálogo.
+- No trae IMEI: se cargan con el botón `IMEI` de cada lote.
+- No están el 13 mini rosa (vendido) ni el 14 Pro violeta señado: la seña se carga en
+  el panel con `+ Ingresar` y después `Señar`, con el nombre de quien señó y lo que dejó.
+
+Comprobación: en `Table Editor` → `celulares` hay 12 filas y en `accesorios`, 340.
 
 ## Paso 8 - Comprobaciones
 
@@ -146,14 +153,6 @@ update public.configuracion set cuotas_planes = '[]'::jsonb where id = 1;
   ```bash
   npm run probar-seguridad
   ```
-
-## El boceto en GitHub Pages
-
-Mientras no esté Supabase, el cliente puede probar todo en
-`https://squicciarinilautaro.github.io/import-salta/`. Es el sitio en modo prueba (stock
-inventado, se entra al panel con `admin@admin.com` y `admin123`, todo vuelve a cero al recargar). Lo publica solo
-`.github/workflows/boceto.yml` con cada push a `main`; GitHub Pages tiene que estar en
-`Settings` → `Pages` → *Source*: **GitHub Actions**.
 
 ## Probar sin tocar los datos reales
 

@@ -9,7 +9,6 @@ dist/
 .env.*
 !.env.ejemplo
 !.env.prueba
-!.env.demo
 
 # Carpeta que crea Vercel al vincular el proyecto
 .vercel/

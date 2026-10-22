@@ -1397,6 +1397,28 @@ await probar('la lista de la revision se edita en Ajustes, sin repetidos ni vaci
 })
 
 // ===========================================================================
+console.log('\nstock inicial del cliente (supabase/stock_inicial.sql)')
+await probar('se carga sobre una base vacia y no sale en el catalogo hasta tener precio', async () => {
+  const limpia = await crearBaseLocal({
+    PGlite,
+    migraciones,
+    semilla: fs.readFileSync(path.join(raiz, 'stock_inicial.sql'), 'utf8'),
+  })
+  const contar = async (tabla) => Number((await limpia.base.query(`select count(*) from public.${tabla}`)).rows[0].count)
+  assert.equal(await contar('celulares'), 12)
+  assert.equal(await contar('accesorios'), 340)
+  let publico = await limpia.rpc('catalogo_publico')
+  assert.deepEqual([publico.celulares.length, publico.accesorios.length], [0, 0])
+  // Con precio, el equipo aparece.
+  await limpia.base.query(`update public.celulares set precio_usd = 900 where modelo = 'IPHONE 17 PRO'`)
+  publico = await limpia.rpc('catalogo_publico')
+  assert.deepEqual(publico.celulares.map((lote) => lote.modelo), ['IPHONE 17 PRO'])
+  const modelos = (await limpia.base.query(`select valor from public.opciones where lista = 'tipo' order by valor`)).rows.map((fila) => fila.valor)
+  assert.ok(['AURICULARES', 'CABLE', 'CARGADOR', 'FUNDA', 'VIDRIO TEMPLADO'].every((tipo) => modelos.includes(tipo)))
+  await limpia.base.close()
+})
+
+// ===========================================================================
 console.log('\nlas migraciones se pueden aplicar dos veces sin romper nada')
 await probar('segunda pasada', async () => {
   for (const migracion of migraciones) await base.exec(migracion)

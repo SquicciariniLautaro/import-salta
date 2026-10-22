@@ -12,7 +12,7 @@ const Admin = lazy(() => import('./Admin.jsx'))
 
 export default function App() {
   return (
-    // basename: en el boceto de GitHub Pages el sitio vive en /import-salta/.
+    // basename: la carpeta del sitio, si no vive en la raiz del dominio (ver negocio.js).
     <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '') || '/'}>
       <Routes>
         <Route path="/" element={<Catalogo />} />

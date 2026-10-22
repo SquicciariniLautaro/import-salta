@@ -7,7 +7,6 @@
     "dev": "vite",
     "dev:prueba": "vite --mode prueba",
     "build": "vite build",
-    "build:demo": "vite build --mode demo && node scripts/pagina-404.js",
     "lint": "oxlint",
     "preview": "vite preview",
     "probar": "node scripts/probar-servicios.js",

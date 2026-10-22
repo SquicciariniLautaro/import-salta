@@ -1,9 +1,7 @@
 -- datos_prueba.sql
--- Stock INVENTADO para mostrar un primer boceto. No es una migracion: se pega
--- a mano en el editor SQL de Supabase, y solo si las tablas estan vacias.
---
--- Para borrarlo todo antes de cargar el stock real:
---   truncate public.celulares, public.accesorios, public.escalas_precio restart identity;
+-- Stock INVENTADO para las pruebas: lo usan "npm run probar-base" y el modo
+-- prueba de tu PC ("npm run dev:prueba"), siempre en una base de mentira.
+-- NUNCA se pega en Supabase: el stock real esta en stock_inicial.sql.
 
 -- Celulares. generate_series(1, cantidad) repite la fila una vez por unidad.
 insert into public.celulares (modelo, capacidad, color, bateria, detalles, costo_usd, precio_usd, estado, revendedor, precio_revendedor, fecha_revendedor, fecha_venta, cotizacion_venta)
