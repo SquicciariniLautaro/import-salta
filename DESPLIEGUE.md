@@ -5,7 +5,7 @@ Cómo queda repartido:
 | Pieza | Dónde vive |
 | --- | --- |
 | Base de datos, usuarios y permisos | Supabase (proyecto `import-salta`) |
-| Frontend (catálogo y panel) | Vercel (proyecto `import-salta`) |
+| Frontend (catálogo y panel) | Vercel: `https://import-salta.vercel.app` |
 
 El navegador habla directo con Supabase. No hay servidor propio en el medio: lo que cada
 uno puede ver o cambiar lo deciden los permisos escritos en
