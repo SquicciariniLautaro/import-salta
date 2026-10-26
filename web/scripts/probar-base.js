@@ -73,7 +73,7 @@ const TABLAS = [
   'escalas_precio', 'revendedores_lista', 'administradores',
   'proveedores', 'comprobantes', 'movimientos_caja', 'servicios',
   'compras', 'opciones', 'combos', 'combo_partes',
-  'clientes', 'cuenta_clientes', 'deudas_proveedor', 'envios_proveedor',
+  'clientes', 'cuenta_clientes', 'deudas_proveedor', 'envios_proveedor', 'imagenes',
 ]
 
 // ===========================================================================
@@ -133,6 +133,8 @@ await probar('catalogo_publico solo trae campos publicos y unidades disponibles'
     'combos', 'nombre', 'detalle',
     // Los planes de cuotas: { cuotas: { planes: [{ cuotas, recargo }], leyenda, accesorios } }.
     'cuotas', 'planes', 'recargo', 'leyenda',
+    // La foto de cada lote (direccion de Cloudinary, publica).
+    'imagen',
   ])
   assert.deepEqual([...campos].filter((campo) => !permitidos.has(campo)), [])
   const texto = JSON.stringify(catalogo)
@@ -1416,6 +1418,59 @@ await probar('se carga sobre una base vacia y no sale en el catalogo hasta tener
   const modelos = (await limpia.base.query(`select valor from public.opciones where lista = 'tipo' order by valor`)).rows.map((fila) => fila.valor)
   assert.ok(['AURICULARES', 'CABLE', 'CARGADOR', 'FUNDA', 'VIDRIO TEMPLADO'].every((tipo) => modelos.includes(tipo)))
   await limpia.base.close()
+})
+
+// ===========================================================================
+console.log('\nfotos de los productos')
+const FOTO = 'https://res.cloudinary.com/mi-nube/image/upload/v1730000000/import-salta/productos/abc.webp'
+const fotoEnCatalogo = async (tabla, clave) => (await rpc('catalogo_publico'))[tabla].find((lote) => lote.clave === clave)?.imagen
+
+await probar('la foto es del lote: sale en el catalogo y en el panel, se cambia y se quita', async () => {
+  const [{ clave }] = await sql(`select clave from public.celulares where estado = 'disponible' and precio_usd > 0 order by id limit 1`)
+  const [accesorio] = await sql(`select clave from public.accesorios where estado = 'disponible' and precio_usd > 0 order by id limit 1`)
+  assert.equal(await fotoEnCatalogo('celulares', clave), null)
+
+  await admin('guardar_imagen', { p_tabla: 'celulares', p_clave: clave, p_url: FOTO })
+  await admin('guardar_imagen', { p_tabla: 'accesorios', p_clave: accesorio.clave, p_url: FOTO })
+  assert.equal(await fotoEnCatalogo('celulares', clave), FOTO)
+  assert.equal(await fotoEnCatalogo('accesorios', accesorio.clave), FOTO)
+  assert.ok((await admin('panel_datos')).imagenes.some((imagen) => imagen.tabla === 'celulares' && imagen.clave === clave && imagen.url === FOTO))
+  // armarCatalogo la deja en el lote.
+  assert.equal(armarCatalogo(await rpc('catalogo_publico')).celulares.find((lote) => lote.clave === clave).imagen, FOTO)
+
+  // Cambiarla pisa la anterior (una por lote).
+  const otra = FOTO.replace('abc', 'def')
+  await admin('guardar_imagen', { p_tabla: 'celulares', p_clave: clave, p_url: otra })
+  assert.equal(await fotoEnCatalogo('celulares', clave), otra)
+  assert.equal((await sql(`select count(*)::int as n from public.imagenes where clave = $1`, [clave]))[0].n, 1)
+
+  await admin('guardar_imagen', { p_tabla: 'celulares', p_clave: clave, p_url: null })
+  assert.equal(await fotoEnCatalogo('celulares', clave), null)
+})
+
+await probar('solo fotos de Cloudinary, de lotes que existen, y solo un administrador', async () => {
+  const [{ clave }] = await sql(`select clave from public.celulares where estado = 'disponible' order by id limit 1`)
+  await rechaza(admin('guardar_imagen', { p_tabla: 'celulares', p_clave: clave, p_url: 'https://otro-sitio.com/foto.webp' }), /no es de Cloudinary/)
+  await rechaza(admin('guardar_imagen', { p_tabla: 'celulares', p_clave: clave, p_url: 'javascript:alert(1)' }), /no es de Cloudinary/)
+  await rechaza(admin('guardar_imagen', { p_tabla: 'celulares', p_clave: 'NO EXISTE', p_url: FOTO }), /ya no existe/)
+  await rechaza(admin('guardar_imagen', { p_tabla: 'administradores', p_clave: clave, p_url: FOTO }), /Tabla desconocida/)
+  await rechaza(rpc('guardar_imagen', { p_tabla: 'celulares', p_clave: clave, p_url: FOTO }, { usuario: AJENO }), /No autorizado/)
+  await rechaza(rpc('guardar_imagen', { p_tabla: 'celulares', p_clave: clave, p_url: FOTO }), /permission denied/)
+  await rechaza(como('authenticated', AJENO, `insert into public.imagenes (tabla, clave, url) values ('celulares', 'X', '${FOTO}')`), /row-level security/)
+  assert.equal((await sql(`select count(*)::int as n from public.imagenes where clave = $1`, [clave]))[0].n, 0)
+})
+
+await probar('si se edita el lote y cambia su clave, la foto lo acompana', async () => {
+  const [lote] = await sql(`select clave, modelo, capacidad, color, bateria, detalles, costo_usd, precio_usd
+                              from public.celulares where estado = 'disponible' order by id desc limit 1`)
+  await admin('guardar_imagen', { p_tabla: 'celulares', p_clave: lote.clave, p_url: FOTO })
+  const nueva = await admin('editar_lote', {
+    p_tabla: 'celulares', p_clave: lote.clave,
+    p_datos: { modelo: lote.modelo, capacidad: lote.capacidad, color: lote.color, bateria: lote.bateria, detalles: 'con foto' },
+    p_costo_usd: Number(lote.costo_usd), p_precio_usd: Number(lote.precio_usd),
+  })
+  assert.notEqual(nueva, lote.clave)
+  assert.deepEqual((await sql(`select url from public.imagenes where tabla = 'celulares' and clave = $1`, [nueva])).map((fila) => fila.url), [FOTO])
 })
 
 // ===========================================================================

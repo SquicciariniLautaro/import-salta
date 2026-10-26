@@ -67,6 +67,8 @@ console.log('1. El catalogo publico no filtra datos privados')
       'combos', 'nombre', 'detalle',
       // Los planes de cuotas: { cuotas: { planes: [{ cuotas, recargo }], leyenda, accesorios } }.
       'cuotas', 'planes', 'recargo', 'leyenda',
+      // La foto de cada lote (direccion de Cloudinary, publica).
+      'imagen',
     ])
     const sobran = [...nombresDeCampos(JSON.parse(texto))].filter((campo) => !permitidos.has(campo))
     informar(sobran.length === 0, 'solo trae campos publicos', sobran.join(', '))
@@ -84,7 +86,7 @@ console.log('\n2. Un visitante no puede leer ni escribir ninguna tabla')
     'escalas_precio', 'revendedores_lista', 'administradores',
     'proveedores', 'comprobantes', 'movimientos_caja', 'servicios',
     'compras', 'opciones', 'combos', 'combo_partes',
-    'clientes', 'cuenta_clientes', 'deudas_proveedor', 'envios_proveedor', 'actas',
+    'clientes', 'cuenta_clientes', 'deudas_proveedor', 'envios_proveedor', 'actas', 'imagenes',
   ]
   for (const tabla of tablas) {
     const respuesta = await pedir(`/rest/v1/${tabla}?select=*&limit=1`)

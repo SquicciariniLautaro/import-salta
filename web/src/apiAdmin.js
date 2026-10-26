@@ -228,6 +228,60 @@ export const borrarUnidades = (tabla, ids) => llamar('borrar_unidades', { p_tabl
 
 export const guardarEscalas = (clave, tramos) => llamar('guardar_escalas', { p_clave: clave, p_tramos: tramos })
 
+// --- Fotos de los productos --------------------------------------------------
+
+// Pone o cambia la foto de un lote (url de Cloudinary). url null = quitarla.
+export const guardarImagen = (tabla, clave, url) => llamar('guardar_imagen', { p_tabla: tabla, p_clave: clave, p_url: url })
+
+const SIN_FIRMA = 'La subida de fotos funciona en el sitio publicado en Vercel, no con "npm run dev".'
+
+// Sube una foto (ya preparada con panel/fotos.js) a Cloudinary y devuelve su
+// direccion. Primero le pide a nuestra funcion de Vercel (api/firma-imagen.js)
+// una firma, que solo se da a administradores; con esa firma Cloudinary la acepta.
+export async function subirImagen(foto) {
+  // Ver la nota sobre import.meta.env.DEV en api.js.
+  if (import.meta.env.DEV && MODO_PRUEBA) {
+    const { guardarFotoDePrueba } = await import('./pruebas/fotosDePrueba.js')
+    return guardarFotoDePrueba(foto)
+  }
+
+  const { data } = await cliente().auth.getSession()
+  if (!data.session) throw new ErrorApi('No tenés permiso para hacer eso. Volvé a iniciar sesión.', 401)
+
+  let respuesta
+  try {
+    respuesta = await fetch('/api/firma-imagen', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${data.session.access_token}` },
+    })
+  } catch {
+    throw new ErrorApi(SIN_CONEXION)
+  }
+  // Sin la funcion (npm run dev) la respuesta es la pagina del sitio, no JSON.
+  const firma = await respuesta.json().catch(() => null)
+  if (!firma) throw new ErrorApi(SIN_FIRMA, respuesta.status)
+  if (!respuesta.ok || !firma.nube) throw new ErrorApi(firma.error || 'No se pudo preparar la subida de la foto.', respuesta.status)
+
+  const formulario = new FormData()
+  for (const [nombre, valor] of Object.entries(firma.datos)) formulario.append(nombre, valor)
+  formulario.append('file', foto, foto.type === 'image/webp' ? 'foto.webp' : foto.name || 'foto')
+
+  try {
+    respuesta = await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(firma.nube)}/image/upload`, {
+      method: 'POST',
+      body: formulario,
+    })
+  } catch {
+    throw new ErrorApi(SIN_CONEXION)
+  }
+  const subida = await respuesta.json().catch(() => null)
+  if (!respuesta.ok || !subida?.secure_url) {
+    const motivo = subida?.error?.message
+    throw new ErrorApi(motivo ? `Cloudinary no aceptó la foto: ${motivo}` : 'No se pudo subir la foto. Probá de nuevo.', respuesta.status)
+  }
+  return subida.secure_url
+}
+
 // --- Ventas y permutas -----------------------------------------------------
 
 // celulares y accesorios: listas [{ id, precio_usd }].
