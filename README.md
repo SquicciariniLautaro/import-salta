@@ -21,17 +21,24 @@ Import Salta:
   elija el dueño) y las firmas del cliente y del vendedor en la pantalla. Sin la revisión
   completa y las dos firmas no se guarda. Se imprime en A4.
 - **Dólar blue**: un botón en el encabezado del panel trae la cotización del día.
+- **Fotos de los productos**: cada celular y accesorio puede llevar una foto, que sale como
+  miniatura en el catálogo (al tocarla se ve grande). Se pone desde el panel y se guarda
+  en Cloudinary en formato webp.
 
 ```
 Navegador ── HTTPS ──> Frontend (React, en Vercel)
 Navegador ── HTTPS ──> Supabase (Postgres + usuarios + permisos)
 Panel     ── HTTPS ──> DolarApi (cotización del blue, solo al tocar el botón)
+Panel     ── HTTPS ──> /api/firma-imagen (función de Vercel: firma cada subida de foto)
+Panel     ── HTTPS ──> Cloudinary (sube la foto firmada)
+Catálogo  ── HTTPS ──> Cloudinary (trae cada foto achicada, en webp)
 ```
 
 | Carpeta | Qué es |
 | --- | --- |
 | `web/` | Frontend: React 19, Vite, Tailwind v4. |
-| `web/src/Catalogo.jsx` | El catálogo público, con la portada del logo y las cuotas. |
+| `web/src/Catalogo.jsx` | El catálogo público, con la portada del logo, las fotos y las cuotas. |
+| `web/api/` | La única función de servidor: `firma-imagen.js`, que corre en Vercel y firma las subidas de fotos a Cloudinary con la clave secreta. |
 | `video/` | El guion que graba el video tutorial (`node video/grabar.mjs`). El video queda en la raíz, fuera de git. |
 | `web/src/panel/` | Las pantallas del panel. `Acta.jsx` y `Firma.jsx` son el acta y las firmas. |
 | `web/src/servicios/` | Cálculo puro: precios, cuotas, actas y firmas, cuentas, ventas, caja, garantías, ticket y código de barras. |

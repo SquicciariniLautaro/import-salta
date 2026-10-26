@@ -11,6 +11,7 @@ import toast from 'react-hot-toast'
 import Modal, { Confirmar } from '../componentes/Modal.jsx'
 import CampoPesos from '../componentes/CampoPesos.jsx'
 import PuntoColor from '../componentes/PuntoColor.jsx'
+import Foto from '../componentes/Foto.jsx'
 import { borrarUnidades, editarImei, guardarEscalas } from '../apiAdmin.js'
 import { aPesos, dolares, normalizar, pesos, soloFecha } from '../formato.js'
 import { agruparPorFamilia, proveedoresDelLote, resumirStock, tituloDeFamilia } from '../servicios/stock.js'
@@ -18,6 +19,8 @@ import { describir } from '../servicios/texto.js'
 import { SeccionCombos } from './Combos.jsx'
 import { ModalCompra } from './Compra.jsx'
 import { FormularioLote, ModalPermuta } from './Formularios.jsx'
+import { ModalFoto } from './FotoLote.jsx'
+import { fotoDelLote } from './fotos.js'
 import { BuscadorImei, CampoBusqueda, CargaRapidaImeis } from './Imei.jsx'
 import { HojaEtiquetas, IconoImpresora, VentanaImpresion } from './Impresion.jsx'
 import { etiquetasParaTicketera } from './ticketera.js'
@@ -207,6 +210,7 @@ export default function PestanaStock({ tabla }) {
       {loteDeVentana && ventana.clase === 'vender' && <ModalVenta lote={loteDeVentana} unidadInicial={ventana.unidad} alCerrar={cerrar} />}
       {loteDeVentana && ventana.clase === 'borrar' && <ModalBorrar lote={loteDeVentana} alCerrar={cerrar} />}
       {loteDeVentana && ventana.clase === 'escalas' && <ModalEscalas lote={loteDeVentana} alCerrar={cerrar} />}
+      {loteDeVentana && ventana.clase === 'foto' && <ModalFoto lote={loteDeVentana} alCerrar={cerrar} />}
       {loteDeVentana && ventana.clase === 'imeis' && <ModalImeis lote={loteDeVentana} alCerrar={cerrar} />}
       {loteDeVentana && ventana.clase === 'etiquetas' && <ModalEtiquetas lote={loteDeVentana} unidadInicial={ventana.unidad} alCerrar={cerrar} />}
       {loteDeVentana && (ventana.clase === 'revendedor' || ventana.clase === 'sena') && (
@@ -254,10 +258,12 @@ function Lote({ lote, abierto, alAlternar, alAbrir }) {
   const enCarrito = carrito.items.filter((item) => item.clave === lote.clave).reduce((suma, item) => suma + item.ids.length, 0)
   const libres = lote.cantidad - enCarrito
   const sinImei = [...lote.disponibles, ...lote.conRevendedores, ...lote.senadas].filter((unidad) => !unidad.imei).length
+  const foto = fotoDelLote(datos, lote)
 
   return (
     <div className="border-t border-neutral-200">
       <button type="button" className="renglon flex w-full items-center gap-2 px-3 py-2 text-left" onClick={alAlternar} aria-expanded={abierto}>
+        {foto && <Foto url={foto} ancho={40} alto={40} className="h-10 w-10 shrink-0 rounded-lg" />}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-sm">
             <span className="font-medium break-words">{esCelular ? lote.capacidad || lote.modelo : lote.modelo || lote.tipo}</span>
@@ -284,6 +290,7 @@ function Lote({ lote, abierto, alAlternar, alAbrir }) {
             {lote.promediado && <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-neutral-600">Promediado</span>}
             {lote.precio_mayorista_usd == null && <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-neutral-500">Sin precio mayorista</span>}
             {escalas > 0 && <span className="rounded bg-green-50 px-1.5 py-0.5 text-green-700">Precio por cantidad</span>}
+            {!foto && <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-neutral-500">Sin foto</span>}
           </div>
         </div>
         <div className="shrink-0 text-right">
@@ -348,6 +355,9 @@ function Lote({ lote, abierto, alAlternar, alAbrir }) {
             <button type="button" className="boton boton-claro boton-chico" onClick={() => alAbrir('etiquetas')}>
               <IconoImpresora />
               Etiquetas
+            </button>
+            <button type="button" className="boton boton-claro boton-chico col-span-2" onClick={() => alAbrir('foto')}>
+              {foto ? 'Cambiar la foto del catálogo' : 'Poner foto en el catálogo'}
             </button>
             <button type="button" className="boton boton-peligro boton-chico col-span-2" disabled={!hayEnLocal} onClick={() => alAbrir('borrar')}>
               Borrar

@@ -26,6 +26,8 @@ import { nombreDeModelo } from '../src/servicios/texto.js'
 import { armarCombos, venderCombo } from '../src/servicios/combos.js'
 import { proveedoresDelLote } from '../src/servicios/stock.js'
 import { extraerImeis } from '../src/formato.js'
+import { urlImagen } from '../src/servicios/imagenes.js'
+import { datosDeSubida, firmar, leerCredenciales } from '../api/_cloudinary.js'
 import {
   aEscPos, codificar, columnasDe, fila, mapaDeCodigo, mapaDeImagen, partir, renglonesDeEtiquetas, renglonesDeServicio, renglonesDeVenta,
   ticketDeVenta,
@@ -723,6 +725,48 @@ probar('el acta no se guarda sin cliente, vendedor, revision completa y las dos 
   )
   assert.equal(problemaDeActa({ ...completa, firmaCliente: [] }), 'Falta la firma del cliente.')
   assert.equal(problemaDeActa({ ...completa, firmaVendedor: [[{ x: 1, y: 1 }]] }), 'Falta la firma del vendedor.')
+})
+
+console.log('fotos')
+probar('urlImagen pide a Cloudinary la miniatura recortada o la foto achicada, al doble para pantallas nitidas', () => {
+  const url = 'https://res.cloudinary.com/mi-nube/image/upload/v1730000000/import-salta/productos/abc.webp'
+  assert.equal(
+    urlImagen(url, { ancho: 44, alto: 44 }),
+    'https://res.cloudinary.com/mi-nube/image/upload/c_fill,g_auto,w_88,h_88,q_auto/v1730000000/import-salta/productos/abc.webp',
+  )
+  assert.equal(urlImagen(url, { ancho: 800 }), 'https://res.cloudinary.com/mi-nube/image/upload/c_limit,w_1600,q_auto/v1730000000/import-salta/productos/abc.webp')
+  // Sin medida, o si no es de Cloudinary, va tal cual.
+  assert.equal(urlImagen(url), url)
+  assert.equal(urlImagen('https://otro.com/image/upload/a.webp', { ancho: 10 }), 'https://otro.com/image/upload/a.webp')
+  assert.equal(urlImagen(null, { ancho: 10 }), '')
+})
+
+probar('la firma de Cloudinary da lo mismo que el ejemplo de su documentacion', () => {
+  const datos = { timestamp: 1315060510, public_id: 'sample_image', eager: 'w_400,h_300,c_pad|w_260,h_200,c_crop' }
+  assert.equal(firmar(datos, 'abcd'), 'bfd09f95f331f558cbd1320e67aa8d488770583e')
+  // Cada subida va a la carpeta de productos y queda en webp.
+  assert.deepEqual(datosDeSubida(100), { allowed_formats: 'webp,jpg,jpeg,png,heic,heif', folder: 'import-salta/productos', format: 'webp', timestamp: 100 })
+})
+
+probar('CLOUDINARY_URL se lee como la muestra Cloudinary, y si esta mal no se usa', () => {
+  assert.deepEqual(leerCredenciales(' cloudinary://123456789:aBc-dEf_123@mi-nube '), { nube: 'mi-nube', clave: '123456789', secreto: 'aBc-dEf_123' })
+  assert.equal(leerCredenciales(''), null)
+  assert.equal(leerCredenciales(undefined), null)
+  assert.equal(leerCredenciales('https://123:abc@mi-nube'), null)
+  assert.equal(leerCredenciales('cloudinary://123@mi-nube'), null)
+  assert.equal(leerCredenciales('no es una direccion'), null)
+})
+
+probar('armarCatalogo pasa la foto de cada lote; los combos no tienen', () => {
+  const catalogo = armarCatalogo({
+    cotizacion: 1000,
+    celulares: [{ clave: 'A', modelo: 'IPHONE 13', capacidad: '128GB', color: '', bateria: '', detalles: '', cantidad: 1, suma_precio: 500, imagen: 'https://res.cloudinary.com/n/image/upload/a.webp' }],
+    accesorios: [{ clave: 'F', tipo: 'FUNDA', modelo: '', color: '', detalles: '', cantidad: 1, suma_precio: 5 }],
+    escalas: [],
+    combos: [{ clave: 'COMBO|1', nombre: 'COMBO', detalle: 'FUNDA', cantidad: 1, precio: 10 }],
+  })
+  assert.equal(catalogo.celulares[0].imagen, 'https://res.cloudinary.com/n/image/upload/a.webp')
+  assert.deepEqual(catalogo.accesorios.map((lote) => lote.imagen), [null, null])
 })
 
 console.log(process.exitCode ? '\nHay pruebas que fallan.' : `\nLas ${pasaron} pruebas pasaron.`)

@@ -24,6 +24,8 @@ export function armarCatalogo(crudo) {
       detalles: lote.detalles,
       precio_usd: promedio(aDiezmilesimos(lote.suma_precio), lote.cantidad),
       cantidad: lote.cantidad,
+      // La foto en Cloudinary (null si no tiene).
+      imagen: lote.imagen || null,
     })),
   )
 
@@ -46,7 +48,8 @@ export function armarCatalogo(crudo) {
       detalles: lote.detalles,
       precio_usd: promedio(aDiezmilesimos(lote.suma_precio), lote.cantidad),
       cantidad: lote.cantidad,
-      escalas: (tramosPorClave.get(lote.clave) || []).sort((a, b) => a.desde - b.desde),
+      imagen: lote.imagen || null,
+      escalas:(tramosPorClave.get(lote.clave) || []).sort((a, b) => a.desde - b.desde),
     })),
   )
 
@@ -63,6 +66,7 @@ export function armarCatalogo(crudo) {
     detalles: combo.detalle,
     precio_usd: Number(combo.precio),
     cantidad: combo.cantidad,
+    imagen: null,
     escalas: [],
   }))
 

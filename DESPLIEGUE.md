@@ -31,8 +31,8 @@ y las actas firmadas conviene el plan Pro: no se pausa y guarda una copia por d�
 ## Paso 2 - Crear las tablas y los permisos
 
 Las migraciones están en `supabase/migrations/` y se aplican **en orden**, de a una. Las
-ocho primeras son el sistema base (el mismo de iPhone DOBB); la novena trae lo que pidió
-Import Salta.
+ocho primeras son el sistema base (el mismo de iPhone DOBB); la novena y la décima traen
+lo que pidió Import Salta.
 
 | Orden | Archivo | Qué trae |
 | --- | --- | --- |
@@ -45,6 +45,7 @@ Import Salta.
 | 7 | `20261020000000_ticket.sql` | Ticket: quién atendió (lista de vendedores), condiciones de garantía y duplicado para el local. |
 | 8 | `20261020120000_garantia_proveedor.sql` | Equipos mandados al proveedor por garantía y pagos de revendedores que se descuentan equipo por equipo. |
 | 9 | `20261021000000_cuotas_y_actas.sql` | **Import Salta**: planes de cuotas con su recargo (salen en el catálogo), cobro con tarjeta en el posnet y actas de entrega y garantía con revisión y firmas. |
+| 10 | `20261026000000_imagenes.sql` | **Import Salta**: una foto por producto (celulares y accesorios) que sale en el catálogo. Las fotos se guardan en Cloudinary (ver *Fotos de los productos*). |
 
 Para cada una:
 
@@ -52,8 +53,8 @@ Para cada una:
 2. Abrí el archivo, copiá **todo** el contenido y pegalo.
 3. `Run`. Tiene que decir *Success. No rows returned*.
 
-Comprobación: en `Table Editor` aparecen veintiuna tablas (entre ellas `actas`) y todas
-dicen *RLS enabled*.
+Comprobación: en `Table Editor` aparecen veintidós tablas (entre ellas `actas` e
+`imagenes`) y todas dicen *RLS enabled*.
 
 Cada migración se puede correr dos veces sin romper nada, pero siempre respetando el orden.
 
@@ -108,6 +109,9 @@ Hace falta porque Vite lee estas variables al compilar, no al abrir la página.
 Para trabajar en tu PC: copiá `web/.env.ejemplo` como `web/.env.local` y completá los
 mismos dos valores.
 
+Para las fotos de los productos hace falta una tercera variable, `CLOUDINARY_URL`: ver
+*Fotos de los productos (Cloudinary)* más abajo.
+
 ## Paso 6 - Lo que carga el dueño en Ajustes
 
 Entrando al panel (`/admin`) → `Ajustes`:
@@ -129,7 +133,7 @@ DolarApi; después hay que tocar `Guardar`.
 
 `supabase/stock_inicial.sql` tiene el stock que pasó el cliente el 2026-10-22: 12
 celulares y 340 accesorios (fundas, vidrios, EarPods, cargadores y cables). Se pega **una
-sola vez** en el `SQL Editor` → `Run`, después de las 9 migraciones. Si se corre dos
+sola vez** en el `SQL Editor` → `Run`, después de las migraciones. Si se corre dos
 veces, el stock queda duplicado.
 
 - Entra todo con costo y precio en 0, porque el cliente no los pasó. **Lo que tiene
@@ -149,6 +153,8 @@ Comprobación: en `Table Editor` → `celulares` hay 12 filas y en `accesorios`,
 - [ ] Recargar la página estando en `/admin` no da 404 y la sesión sigue abierta.
 - [ ] Lo mismo desde un celular.
 - [ ] Una venta de prueba con tarjeta en cuotas y su acta firmada (después se anula).
+- [ ] Una foto puesta desde el panel se ve en el catálogo, y en Cloudinary aparece en la
+  carpeta `import-salta/productos` en formato webp.
 - [ ] Las pruebas de seguridad, desde tu PC, en la carpeta `web`:
   ```bash
   npm run probar-seguridad
@@ -196,6 +202,62 @@ Cada celular vendido lleva un acta que firman el cliente y el vendedor:
 Una vez guardada no se edita: es lo que se firmó. Guarda las condiciones de garantía del
 día en que se firmó, aunque después se cambien en `Ajustes`.
 
+## Fotos de los productos (Cloudinary)
+
+Cada producto del catálogo (celulares y accesorios) puede llevar una foto. Las fotos no se
+guardan en Supabase sino en **Cloudinary**, un servicio que las guarda y las entrega
+achicadas y en **webp** (pesan poco y el catálogo carga rápido). La base solo guarda la
+dirección de cada foto.
+
+```
+Panel ──> /api/firma-imagen (Vercel) ── revisa que sea administrador y firma la subida
+Panel ──> Cloudinary ── recibe la foto firmada, la guarda en webp
+Catálogo ──> Cloudinary ── trae cada foto del tamaño justo
+```
+
+La clave secreta de Cloudinary vive solo en Vercel: nunca viaja al navegador. Por eso
+nadie que no sea administrador puede subir fotos a la cuenta, aunque mire el código del sitio.
+
+### Conectar Cloudinary (una sola vez)
+
+1. Creá la cuenta en [cloudinary.com](https://cloudinary.com) (el plan gratis alcanza de
+   sobra para el catálogo). Conviene hacerla con un correo del negocio.
+2. En la consola de Cloudinary: `Settings` (el engranaje) → `API Keys`. Arriba está el
+   **API environment variable**, de esta forma:
+   `CLOUDINARY_URL=cloudinary://123456789012345:abcdEFGH-ijkl_mnop@nombre-de-tu-nube`.
+   Copiá todo lo que va **después** de `CLOUDINARY_URL=` (el botón del ojo muestra la
+   parte secreta).
+3. En vercel.com → proyecto `import-salta` → `Settings` → `Environment Variables` →
+   `Add New`:
+   - *Key*: `CLOUDINARY_URL`
+   - *Value*: lo que copiaste (`cloudinary://...`).
+   - *Environments*: *Production* y *Preview*.
+   - Marcá **Sensitive**: así ni siquiera se puede volver a leer desde Vercel.
+4. `Deployments` → en el último, `...` → `Redeploy`. Sin esto la variable no se usa.
+5. No hay que configurar nada más en Cloudinary (ni "upload presets"): el sistema crea
+   solo la carpeta `import-salta/productos` con la primera foto.
+
+### Poner una foto
+
+En el panel: `Celulares` (o `Accesorios`) → abrir el modelo → tocar el producto →
+`Poner foto en el catálogo` → `Elegir foto` (desde el celular abre la cámara o la galería)
+→ `Guardar foto`.
+
+- La foto es del producto (modelo, capacidad, color...), no de cada unidad: si entran más
+  equipos iguales, ya salen con la foto. Si se edita el producto (otro color, por
+  ejemplo), la foto lo acompaña.
+- Antes de subirla, el panel la achica a 1600 px y la pasa a webp. Si el navegador no sabe
+  hacer webp, Cloudinary la convierte al recibirla: en Cloudinary quedan siempre en webp.
+- En el catálogo sale una miniatura a la izquierda de cada producto, y al tocarla se ve
+  grande. Los que no tienen foto muestran un cuadro vacío, para que la tabla quede pareja.
+- `Cambiar la foto del catálogo` la reemplaza; `Quitar foto` la saca del catálogo. La foto
+  vieja queda en Cloudinary (no molesta; se puede borrar a mano desde `Media Library`).
+- En el panel, los productos sin foto llevan la marca *Sin foto*.
+
+Las fotos solo se pueden subir desde el sitio publicado en Vercel (ahí corre la función
+que firma). Con `npm run dev:prueba` también se puede probar: las fotos quedan en la
+memoria del navegador, sin tocar Cloudinary.
+
 ## Impresora de tickets y etiquetas
 
 El panel imprime con la ventana de impresión del navegador: no hace falta instalar ningún
@@ -237,6 +299,10 @@ emite facturas electrónicas de ARCA.
 | "Correo o contraseña incorrectos" con la contraseña bien | El correo no está en `administradores`, o el usuario se creó sin *Auto Confirm User*. |
 | El catálogo no muestra cuotas | No hay planes cargados en `Ajustes` → *Cuotas con tarjeta*, o falta la migración 9. |
 | "Algo falló" al guardar un acta o al cobrar con tarjeta | Falta aplicar la migración 9: volver al paso 2. |
+| "Falta configurar Cloudinary en Vercel" al guardar una foto | Falta la variable `CLOUDINARY_URL` en Vercel, o falta el `Redeploy` después de cargarla. |
+| "Cloudinary no aceptó la foto: Invalid Signature" | `CLOUDINARY_URL` está mal copiada (o se regeneró la clave en Cloudinary): copiarla de nuevo y `Redeploy`. |
+| "La subida de fotos funciona en el sitio publicado..." | Se está usando `npm run dev`: la función que firma solo corre en Vercel. Probar en el sitio publicado o con `npm run dev:prueba`. |
+| "Algo falló" al guardar una foto | Falta aplicar la migración 10: volver al paso 2. |
 | *Usar el dólar blue de hoy* no trae nada | DolarApi no respondió: escribir la cotización a mano y `Guardar`. |
 | El ticket sale cortado, muy chico o con una hoja en blanco | En `Ajustes` → *Impresora*, corregir el ancho del rollo; en la ventana de impresión, márgenes en "Ninguno". |
 | Todo dejó de andar después de varios días | El proyecto gratuito se pausó: entrar a Supabase y `Restore project`. |

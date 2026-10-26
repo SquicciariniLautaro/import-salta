@@ -7,18 +7,22 @@
 // iPhone 14 Pro...) con un renglon por equipo: capacidad y color, bateria,
 // precio y el boton de WhatsApp. Fondo negro y letras blancas.
 // Al entrar aparece el logo con una animacion corta (ver "Portada").
+// Si algun producto tiene foto, cada renglon lleva una miniatura que, al
+// tocarla, muestra la foto grande.
 //
 // Pensado primero para 360 px de ancho: las tablas son de ancho fijo
 // (table-fixed) con columnas chicas de medida conocida, para que nunca haya
 // que deslizar hacia los costados.
 
 import { Fragment, useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { obtenerCatalogo } from './api.js'
 import { NEGOCIO, rutaPublica } from './negocio.js'
 import { aPesos, enlaceAccesorio, enlaceCelular, normalizar, pesos, precioSegunCantidad } from './formato.js'
 import { agruparPorFamilia, tituloDeFamilia } from './servicios/stock.js'
 import { cuotasDe, planMasLargo, planesPara } from './servicios/cuotas.js'
 import PuntoColor from './componentes/PuntoColor.jsx'
+import Foto from './componentes/Foto.jsx'
 import Pie from './componentes/Pie.jsx'
 
 const PESTANAS = [
@@ -87,6 +91,16 @@ function IconoEscudo({ clase = 'h-4 w-4' }) {
   )
 }
 
+function IconoFoto({ clase = 'h-5 w-5' }) {
+  return (
+    <svg viewBox="0 0 24 24" className={clase} fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
+      <rect x="3.5" y="5" width="17" height="14" rx="2.5" />
+      <circle cx="9" cy="10" r="1.6" />
+      <path d="M4 17l5-4.5 3.5 3 3-2.5 4.5 4" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 // Boton redondo verde que abre WhatsApp con el mensaje armado.
 function BotonWhatsApp({ enlace, descripcion }) {
   return (
@@ -99,6 +113,68 @@ function BotonWhatsApp({ enlace, descripcion }) {
     >
       <IconoWhatsApp />
     </a>
+  )
+}
+
+// --- Fotos -------------------------------------------------------------------
+
+// Cuadro chico al principio del renglon. Sin foto queda un cuadro vacio, para
+// que los nombres de la tabla sigan alineados.
+function Miniatura({ url, titulo }) {
+  const [abierta, setAbierta] = useState(false)
+  if (!url) {
+    return (
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-borde bg-superficie text-neutral-300" aria-hidden="true">
+        <IconoFoto />
+      </span>
+    )
+  }
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setAbierta(true)}
+        aria-label={`Ver la foto: ${titulo}`}
+        className="h-11 w-11 shrink-0 cursor-zoom-in overflow-hidden rounded-lg border border-borde"
+      >
+        <Foto url={url} ancho={44} alto={44} className="h-full w-full" />
+      </button>
+      {abierta && <VisorDeFoto url={url} titulo={titulo} alCerrar={() => setAbierta(false)} />}
+    </>
+  )
+}
+
+// La foto grande sobre fondo negro. Se cierra tocando en cualquier lado o con Escape.
+function VisorDeFoto({ url, titulo, alCerrar }) {
+  useEffect(() => {
+    const alTeclear = (evento) => evento.key === 'Escape' && alCerrar()
+    document.addEventListener('keydown', alTeclear)
+    const anterior = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', alTeclear)
+      document.body.style.overflow = anterior
+    }
+  }, [alCerrar])
+
+  // Se dibuja colgada de <body> (ver la nota de componentes/Modal.jsx).
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={titulo}
+      onClick={alCerrar}
+      className="animate-aparecer fixed inset-0 z-50 flex cursor-zoom-out flex-col items-center justify-center bg-negro/95 p-4"
+    >
+      <button type="button" aria-label="Cerrar" className="absolute top-3 right-3 rounded-full p-2 text-neutral-500 hover:text-blanco">
+        <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <path d="M6 6l12 12M18 6L6 18" />
+        </svg>
+      </button>
+      <Foto url={url} ancho={800} alt={titulo} className="h-auto max-h-[78vh] w-auto max-w-full rounded-xl" />
+      <p className="mt-3 max-w-full text-center text-sm font-medium break-words text-blanco">{titulo}</p>
+    </div>,
+    document.body,
   )
 }
 
@@ -240,6 +316,7 @@ function Separador({ titulo, columnas }) {
 function TablaCelulares({ lotes, catalogo }) {
   const grupos = agruparPorFamilia(lotes)
   const planes = planesPara('celulares', catalogo.cuotas)
+  const conFotos = lotes.some((lote) => lote.imagen)
 
   return (
     <table className="w-full table-fixed border-collapse">
@@ -263,7 +340,7 @@ function TablaCelulares({ lotes, catalogo }) {
           <Fragment key={`${grupo.marca}|${grupo.familia}`}>
             <Separador titulo={tituloDeFamilia(grupo)} columnas={4} />
             {grupo.lotes.map((lote) => (
-              <FilaCelular key={lote.clave} lote={lote} cotizacion={catalogo.cotizacion} planes={planes} />
+              <FilaCelular key={lote.clave} lote={lote} cotizacion={catalogo.cotizacion} planes={planes} conFotos={conFotos} />
             ))}
           </Fragment>
         ))}
@@ -272,7 +349,7 @@ function TablaCelulares({ lotes, catalogo }) {
   )
 }
 
-function FilaCelular({ lote, cotizacion, planes }) {
+function FilaCelular({ lote, cotizacion, planes, conFotos }) {
   const [abierto, setAbierto] = useState(false)
   const precioArs = aPesos(lote.precio_usd, cotizacion)
 
@@ -280,13 +357,18 @@ function FilaCelular({ lote, cotizacion, planes }) {
     <>
       <tr className={`renglon ${abierto ? '' : 'border-b border-borde'}`}>
         <td className="py-2 pr-1 pl-3 align-middle">
-          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-            <span className="text-sm font-semibold text-blanco">{lote.capacidad || lote.modelo}</span>
-            <PuntoColor color={lote.color} />
+          <div className="flex items-center gap-2.5">
+            {conFotos && <Miniatura url={lote.imagen} titulo={[lote.modelo, lote.capacidad, lote.color].filter(Boolean).join(' ')} />}
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                <span className="text-sm font-semibold text-blanco">{lote.capacidad || lote.modelo}</span>
+                <PuntoColor color={lote.color} />
+              </div>
+              {lote.detalles && <p className="text-xs break-words text-neutral-500">{lote.detalles}</p>}
+              {lote.cantidad > 1 && <p className="text-[11px] text-neutral-500">{lote.cantidad} disponibles</p>}
+              <ResumenCuotas precioArs={precioArs} planes={planes} abierto={abierto} alAlternar={() => setAbierto(!abierto)} />
+            </div>
           </div>
-          {lote.detalles && <p className="text-xs break-words text-neutral-500">{lote.detalles}</p>}
-          {lote.cantidad > 1 && <p className="text-[11px] text-neutral-500">{lote.cantidad} disponibles</p>}
-          <ResumenCuotas precioArs={precioArs} planes={planes} abierto={abierto} alAlternar={() => setAbierto(!abierto)} />
         </td>
         <td className="px-1 py-2 text-center align-middle text-sm text-neutral-700">{lote.bateria || '-'}</td>
         <td className="px-1 py-2 text-right align-middle text-sm font-semibold whitespace-nowrap text-blanco">{pesos(precioArs)}</td>
@@ -308,6 +390,7 @@ function FilaCelular({ lote, cotizacion, planes }) {
 function TablaAccesorios({ lotes, catalogo }) {
   const grupos = agruparPorFamilia(lotes)
   const planes = planesPara('accesorios', catalogo.cuotas)
+  const conFotos = lotes.some((lote) => lote.imagen)
 
   return (
     <table className="w-full table-fixed border-collapse">
@@ -328,7 +411,7 @@ function TablaAccesorios({ lotes, catalogo }) {
           <Fragment key={grupo.familia}>
             <Separador titulo={grupo.familia} columnas={3} />
             {grupo.lotes.map((lote) => (
-              <FilaAccesorio key={lote.clave} lote={lote} cotizacion={catalogo.cotizacion} planes={planes} />
+              <FilaAccesorio key={lote.clave} lote={lote} cotizacion={catalogo.cotizacion} planes={planes} conFotos={conFotos} />
             ))}
           </Fragment>
         ))}
@@ -337,7 +420,7 @@ function TablaAccesorios({ lotes, catalogo }) {
   )
 }
 
-function FilaAccesorio({ lote, cotizacion, planes }) {
+function FilaAccesorio({ lote, cotizacion, planes, conFotos }) {
   // Que se ve abajo del renglon: nada, los precios por cantidad o las cuotas.
   const [abierto, setAbierto] = useState(null) // null | 'escalas' | 'cuotas'
   const tieneEscalas = lote.escalas.length > 0
@@ -348,23 +431,28 @@ function FilaAccesorio({ lote, cotizacion, planes }) {
     <>
       <tr className={`renglon ${abierto ? '' : 'border-b border-borde'}`}>
         <td className="py-2 pr-1 pl-3 align-middle">
-          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
-            <span className="min-w-0 text-sm font-semibold break-words text-blanco">{lote.modelo || lote.tipo}</span>
-            <PuntoColor color={lote.color} />
+          <div className="flex items-center gap-2.5">
+            {conFotos && <Miniatura url={lote.imagen} titulo={[lote.tipo, lote.modelo, lote.color].filter(Boolean).join(' ')} />}
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                <span className="min-w-0 text-sm font-semibold break-words text-blanco">{lote.modelo || lote.tipo}</span>
+                <PuntoColor color={lote.color} />
+              </div>
+              {lote.detalles && <p className="text-xs break-words text-neutral-500">{lote.detalles}</p>}
+              {lote.cantidad > 1 && <p className="text-[11px] text-neutral-500">{lote.cantidad} disponibles</p>}
+              <ResumenCuotas precioArs={precioArs} planes={planes} abierto={abierto === 'cuotas'} alAlternar={() => alternar('cuotas')} />
+              {tieneEscalas && (
+                <button
+                  type="button"
+                  onClick={() => alternar('escalas')}
+                  aria-expanded={abierto === 'escalas'}
+                  className="enlace-raya mt-1 text-left text-xs font-medium text-verde"
+                >
+                  {abierto === 'escalas' ? 'Ocultar precios por cantidad' : 'Ver precios por cantidad'}
+                </button>
+              )}
+            </div>
           </div>
-          {lote.detalles && <p className="text-xs break-words text-neutral-500">{lote.detalles}</p>}
-          {lote.cantidad > 1 && <p className="text-[11px] text-neutral-500">{lote.cantidad} disponibles</p>}
-          <ResumenCuotas precioArs={precioArs} planes={planes} abierto={abierto === 'cuotas'} alAlternar={() => alternar('cuotas')} />
-          {tieneEscalas && (
-            <button
-              type="button"
-              onClick={() => alternar('escalas')}
-              aria-expanded={abierto === 'escalas'}
-              className="enlace-raya mt-1 text-xs font-medium text-verde"
-            >
-              {abierto === 'escalas' ? 'Ocultar precios por cantidad' : 'Ver precios por cantidad'}
-            </button>
-          )}
         </td>
         <td className="px-1 py-2 text-right align-middle text-sm font-semibold whitespace-nowrap text-blanco">{pesos(precioArs)}</td>
         <td className="py-2 pr-2 text-right align-middle">
