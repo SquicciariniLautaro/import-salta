@@ -9,9 +9,12 @@ import CampoPesos from '../componentes/CampoPesos.jsx'
 import { buscarImei, editarLote, ingresarAccesorios, ingresarCelulares, registrarPermuta } from '../apiAdmin.js'
 import { aDolares, aPesos, extraerImei, fechaCorta, pesos } from '../formato.js'
 import { COBRO_VACIO, DEUDA_VACIA, cobroIncompleto, cobroParaLaBase, montoDeDeuda, numeroDeTicket, problemaDeDeuda } from '../servicios/comprobante.js'
+import { claveDeLoteIngresado } from '../servicios/imagenes.js'
 import { proveedoresDelLote } from '../servicios/stock.js'
 import { describir } from '../servicios/texto.js'
 import { CampoUsd, Cantidad, SelectorConOtro } from './Campos.jsx'
+import { CampoFoto } from './FotoLote.jsx'
+import { fotoDelLote, ponerFotos, subirFotos } from './fotos.js'
 import { CampoDeuda, CampoGarantia, CampoVendedor, CamposDeCliente, CamposDeCobro } from './Cobro.jsx'
 import { useVendedor } from './useVendedor.js'
 import { AyudaPistola, CampoImeis } from './Imei.jsx'
@@ -133,6 +136,8 @@ export function FormularioLote({ tabla, modo, lote, alCerrar }) {
   )
   // Al editar, el proveedor solo se cambia si se lo toco.
   const [proveedorTocado, setProveedorTocado] = useState(false)
+  // Foto para el catalogo, opcional: { archivo, vista } o null (= no tocarla).
+  const [foto, setFoto] = useState(null)
   const [ocupado, ejecutar] = useAccion()
 
   const titulos = {
@@ -154,12 +159,16 @@ export function FormularioLote({ tabla, modo, lote, alCerrar }) {
     }
     ejecutar(
       async () => {
+        const [url] = await subirFotos([foto])
+        // Al editar, la base devuelve la clave (cambia si cambiaron los datos).
+        let clave = null
         if (modo === 'editar') {
-          await editarLote(tabla, lote.clave, campos, montos.costo_usd, montos.precio_usd, proveedorTocado ? proveedor : null, montos.precio_mayorista_usd)
+          clave = await editarLote(tabla, lote.clave, campos, montos.costo_usd, montos.precio_usd, proveedorTocado ? proveedor : null, montos.precio_mayorista_usd)
         }
         else if (esCelular) await ingresarCelulares({ ...campos, ...montos, cantidad, imeis, proveedor })
         else await ingresarAccesorios({ ...campos, ...montos, cantidad, proveedor })
-        await recargar()
+        const nuevos = await recargar()
+        await ponerFotos(tabla, [{ clave: clave ?? claveDeLoteIngresado(nuevos[tabla], campos), url }], recargar)
       },
       { exito: modo === 'editar' ? 'Lote actualizado' : 'Stock cargado', alTerminar: alCerrar },
     )
@@ -229,6 +238,20 @@ export function FormularioLote({ tabla, modo, lote, alCerrar }) {
               </div>
             )}
           </>
+        )}
+
+        {/* Al sumar no: el lote ya existe y su foto se cambia desde el boton del lote. */}
+        {modo !== 'sumar' && (
+          <CampoFoto
+            foto={foto}
+            alCambiar={setFoto}
+            actual={modo === 'editar' ? fotoDelLote(datos, lote) : null}
+            ayuda={
+              modo === 'editar'
+                ? 'Sale en el catálogo al lado del producto. Elegí una solo si la querés cambiar.'
+                : `Sale en el catálogo al lado del producto. Si ingresás varias unidades, la foto es para todas${esCelular ? ' (son el mismo modelo, color y capacidad)' : ''}.`
+            }
+          />
         )}
 
         <label className="etiqueta">

@@ -26,7 +26,7 @@ import { nombreDeModelo } from '../src/servicios/texto.js'
 import { armarCombos, venderCombo } from '../src/servicios/combos.js'
 import { proveedoresDelLote } from '../src/servicios/stock.js'
 import { extraerImeis } from '../src/formato.js'
-import { urlImagen } from '../src/servicios/imagenes.js'
+import { claveDeLoteIngresado, urlImagen } from '../src/servicios/imagenes.js'
 import { datosDeSubida, firmar, leerCredenciales } from '../api/_cloudinary.js'
 import {
   aEscPos, codificar, columnasDe, fila, mapaDeCodigo, mapaDeImagen, partir, renglonesDeEtiquetas, renglonesDeServicio, renglonesDeVenta,
@@ -755,6 +755,17 @@ probar('CLOUDINARY_URL se lee como la muestra Cloudinary, y si esta mal no se us
   assert.equal(leerCredenciales('https://123:abc@mi-nube'), null)
   assert.equal(leerCredenciales('cloudinary://123@mi-nube'), null)
   assert.equal(leerCredenciales('no es una direccion'), null)
+})
+
+probar('claveDeLoteIngresado busca el lote con los datos como los guarda la base', () => {
+  const unidades = [
+    { clave: 'IPHONE 13|128GB|AZUL|88%|', modelo: 'IPHONE 13', capacidad: '128GB', color: 'AZUL', bateria: '88%', detalles: '' },
+    { clave: 'IPHONE 13|128GB|AZUL|90%|', modelo: 'IPHONE 13', capacidad: '128GB', color: 'AZUL', bateria: '90%', detalles: '' },
+  ]
+  const campos = { modelo: ' iphone  13 ', capacidad: '128gb', color: 'azul', bateria: '90%', detalles: '' }
+  assert.equal(claveDeLoteIngresado(unidades, campos), 'IPHONE 13|128GB|AZUL|90%|')
+  assert.equal(claveDeLoteIngresado(unidades, { ...campos, bateria: '80%' }), null)
+  assert.equal(claveDeLoteIngresado([], campos), null)
 })
 
 probar('armarCatalogo pasa la foto de cada lote; los combos no tienen', () => {

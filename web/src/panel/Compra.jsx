@@ -2,22 +2,26 @@
 // Lotes de compra: todo lo que vino de un proveedor en una misma compra.
 // Se elige el proveedor una vez y se cargan los modelos que trajo, cada uno
 // con su color, bateria, costo, precio y cantidad. Los IMEI se pueden leer en
-// el momento o despues, de corrido, desde el lote.
+// el momento o despues, de corrido, desde el lote. Cada modelo puede llevar
+// su foto para el catalogo.
 
 import { useRef, useState } from 'react'
 import Modal from '../componentes/Modal.jsx'
 import { ingresarCompra } from '../apiAdmin.js'
 import { aPesos, dolares, fechaCorta, pesos } from '../formato.js'
 import { numeroDeTicket } from '../servicios/comprobante.js'
+import { claveDeLoteIngresado } from '../servicios/imagenes.js'
 import { sumar } from '../servicios/lotes.js'
 import { describir } from '../servicios/texto.js'
 import { CampoUsd, Cantidad, SelectorConOtro } from './Campos.jsx'
 import { CamposDeCelular } from './Formularios.jsx'
+import { CampoFoto } from './FotoLote.jsx'
+import { ponerFotos, subirFotos } from './fotos.js'
 import { CampoImeis, CargaRapidaImeis } from './Imei.jsx'
 import { usePanel } from './contexto.js'
 import { useAccion } from './useAccion.js'
 
-const MODELO_VACIO = { modelo: '', capacidad: '', color: '', bateria: '', detalles: '', costo: '', precio: '', mayorista: '', cantidad: 1, imeis: [] }
+const MODELO_VACIO = { modelo: '', capacidad: '', color: '', bateria: '', detalles: '', costo: '', precio: '', mayorista: '', cantidad: 1, imeis: [], foto: null }
 
 // Un texto de campo es un monto valido si es un numero mayor o igual a cero.
 const esMonto = (texto) => texto !== '' && Number(texto) >= 0
@@ -46,14 +50,15 @@ export function ModalCompra({ proveedorInicial = '', alCerrar }) {
     (queDebe && deuda !== '' && !esMonto(deuda)) ||
     modelos.some((modelo) => !modelo.modelo.trim() || !esMonto(modelo.costo) || !esMonto(modelo.precio) || (modelo.mayorista !== '' && !esMonto(modelo.mayorista)))
 
+  // Parte de la lista del momento: la foto llega un rato despues de elegirla.
   function cambiar(posicion, cambios) {
-    setModelos(modelos.map((modelo, indice) => (indice === posicion ? { ...modelo, ...cambios } : modelo)))
+    setModelos((actuales) => actuales.map((modelo, indice) => (indice === posicion ? { ...modelo, ...cambios } : modelo)))
   }
 
-  // Duplicar copia todo menos la cantidad y los IMEI: sirve para el mismo
-  // modelo en otro color o con otra bateria.
+  // Duplicar copia todo menos la cantidad, los IMEI y la foto: sirve para el
+  // mismo modelo en otro color o con otra bateria.
   function duplicar(posicion) {
-    const copia = { ...modelos[posicion], cantidad: 1, imeis: [], llave: proximaLlave.current }
+    const copia = { ...modelos[posicion], cantidad: 1, imeis: [], foto: null, llave: proximaLlave.current }
     proximaLlave.current += 1
     setModelos([...modelos.slice(0, posicion + 1), copia, ...modelos.slice(posicion + 1)])
   }
@@ -67,6 +72,7 @@ export function ModalCompra({ proveedorInicial = '', alCerrar }) {
     evento.preventDefault()
     ejecutar(
       async () => {
+        const urls = await subirFotos(modelos.map((modelo) => modelo.foto))
         const resultado = await ingresarCompra(
           proveedor,
           nota,
@@ -84,7 +90,19 @@ export function ModalCompra({ proveedorInicial = '', alCerrar }) {
           })),
           deudaUsd,
         )
-        await recargar()
+        const nuevos = await recargar()
+        // La foto de cada modelo va al lote que se cargo en esta compra.
+        const deLaCompra = nuevos.celulares.filter((unidad) => unidad.compra_id === resultado.compra)
+        await ponerFotos(
+          'celulares',
+          modelos.map((modelo, posicion) => ({
+            clave: claveDeLoteIngresado(deLaCompra, {
+              modelo: modelo.modelo, capacidad: modelo.capacidad, color: modelo.color, bateria: modelo.bateria, detalles: modelo.detalles,
+            }),
+            url: urls[posicion],
+          })),
+          recargar,
+        )
         setHecha(resultado.compra)
       },
       { exito: 'Lote cargado' },
@@ -208,6 +226,12 @@ export function ModalCompra({ proveedorInicial = '', alCerrar }) {
                 }
               />
             </div>
+
+            <CampoFoto
+              foto={modelo.foto}
+              alCambiar={(foto) => cambiar(posicion, { foto })}
+              ayuda="Sale en el catálogo al lado de este modelo. Vale para todas sus unidades."
+            />
           </section>
         ))}
 
