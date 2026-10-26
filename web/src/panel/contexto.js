@@ -15,7 +15,7 @@ export const ContextoPanel = createContext(null)
 //   stock        { celulares, accesorios }: lotes armados
 //   avisos       { celulares, accesorios }: que se quedo sin stock o tiene poco
 //   cuentas      { revendedor, sena }: cuentas armadas
-//   recargar()   vuelve a leer todo de la base
+//   recargar()   vuelve a leer todo de la base (y devuelve lo que leyo)
 //   carrito, agregarAlCarrito(tipo, item), cambiarCarrito(carrito), vaciarCarrito()
 //   irA(pestana) cambia de pestana
 export function usePanel() {

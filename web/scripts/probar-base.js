@@ -22,6 +22,7 @@ import { armarAvisos } from '../src/servicios/avisos.js'
 import { armarCaja, resumirCaja } from '../src/servicios/caja.js'
 import { armarComprobante } from '../src/servicios/comprobante.js'
 import { armarGarantias } from '../src/servicios/garantias.js'
+import { claveDeLoteIngresado } from '../src/servicios/imagenes.js'
 
 const raiz = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'supabase')
 const carpeta = path.join(raiz, 'migrations')
@@ -1471,6 +1472,46 @@ await probar('si se edita el lote y cambia su clave, la foto lo acompana', async
   })
   assert.notEqual(nueva, lote.clave)
   assert.deepEqual((await sql(`select url from public.imagenes where tabla = 'celulares' and clave = $1`, [nueva])).map((fila) => fila.url), [FOTO])
+})
+
+await probar('la foto elegida al ingresar encuentra su lote aunque los datos se escriban desprolijos', async () => {
+  // Celulares: minusculas, espacios de mas y tildes; la base los guarda limpios y en mayusculas.
+  const campos = { modelo: '  iphone   17 pró ', capacidad: '256gb', color: ' azul  cielo', bateria: '100%', detalles: '' }
+  await admin('ingresar_celulares', {
+    p_modelo: campos.modelo, p_capacidad: campos.capacidad, p_color: campos.color, p_bateria: campos.bateria, p_detalles: campos.detalles,
+    p_costo_usd: 900, p_precio_usd: 1100, p_cantidad: 2,
+  })
+  let panel = await admin('panel_datos')
+  const clave = claveDeLoteIngresado(panel.celulares, campos)
+  assert.ok(clave, 'no encontro el lote')
+  assert.equal(panel.celulares.filter((unidad) => unidad.clave === clave).length, 2)
+  await admin('guardar_imagen', { p_tabla: 'celulares', p_clave: clave, p_url: FOTO })
+  assert.ok((await admin('panel_datos')).imagenes.some((imagen) => imagen.clave === clave && imagen.url === FOTO))
+
+  // Accesorios.
+  const accesorio = { tipo: 'funda ', modelo: 'magsafe  iphone 17', color: 'negra', detalles: '' }
+  await admin('ingresar_accesorios', {
+    p_tipo: accesorio.tipo, p_modelo: accesorio.modelo, p_color: accesorio.color, p_detalles: accesorio.detalles,
+    p_costo_usd: 5, p_precio_usd: 15, p_cantidad: 3,
+  })
+  panel = await admin('panel_datos')
+  assert.ok(claveDeLoteIngresado(panel.accesorios, accesorio))
+
+  // Lote de proveedor: cada modelo encuentra el suyo entre las unidades de esa compra.
+  const modelos = [
+    { modelo: 'iphone 17', capacidad: '128gb', color: 'blanco', bateria: '100%', detalles: '' },
+    { modelo: 'iphone 17', capacidad: '128gb', color: 'negro', bateria: '100%', detalles: 'sellado' },
+  ]
+  const { compra } = await admin('ingresar_compra', {
+    p_proveedor: 'importadora foto', p_nota: '',
+    p_celulares: modelos.map((modelo) => ({ ...modelo, costo_usd: 700, precio_usd: 850, cantidad: 1, imeis: [] })),
+  })
+  panel = await admin('panel_datos')
+  const deLaCompra = panel.celulares.filter((unidad) => unidad.compra_id === compra)
+  const claves = modelos.map((modelo) => claveDeLoteIngresado(deLaCompra, modelo))
+  assert.deepEqual(claves, ['IPHONE 17|128GB|BLANCO|100%|', 'IPHONE 17|128GB|NEGRO|100%|SELLADO'])
+  // Algo que no se cargo no encuentra nada.
+  assert.equal(claveDeLoteIngresado(deLaCompra, { ...modelos[0], color: 'rojo' }), null)
 })
 
 // ===========================================================================

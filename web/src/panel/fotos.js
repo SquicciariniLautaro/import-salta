@@ -5,6 +5,9 @@
 // Si el navegador no sabe hacer webp (Safari viejo), sale en jpg y Cloudinary
 // la convierte a webp al recibirla.
 
+import toast from 'react-hot-toast'
+import { guardarImagen, subirImagen } from '../apiAdmin.js'
+
 const LADO_MAXIMO = 1600
 // Hasta este tamano se sube tal cual si el navegador no la puede abrir.
 const PESO_MAXIMO = 10 * 1024 * 1024
@@ -12,6 +15,34 @@ const PESO_MAXIMO = 10 * 1024 * 1024
 // La direccion de la foto del lote (lo que trajo panel_datos), o null si no tiene.
 export function fotoDelLote(datos, lote) {
   return (datos.imagenes || []).find((imagen) => imagen.tabla === lote.tabla && imagen.clave === lote.clave)?.url || null
+}
+
+// Sube a Cloudinary las fotos elegidas en un formulario, ANTES de cargar el
+// stock: si una falla, no se cargo nada y se puede volver a intentar.
+// fotos: lista de { archivo } o null. Devuelve las direcciones (null donde no habia).
+export async function subirFotos(fotos) {
+  const urls = []
+  for (const foto of fotos) urls.push(foto ? await subirImagen(foto.archivo) : null)
+  return urls
+}
+
+// Despues de cargar el stock: le pone a cada lote su foto ya subida.
+// pares: [{ clave, url }] (clave null = no se encontro el lote recien cargado).
+// Nunca tira error: el stock ya quedo cargado, y si el formulario mostrara un
+// error se podria volver a tocar Guardar y cargarlo dos veces. Si algo falla,
+// se avisa y la foto se pone despues con "Poner foto en el catalogo".
+export async function ponerFotos(tabla, pares, recargar) {
+  const conFoto = pares.filter((par) => par.url)
+  if (conFoto.length === 0) return
+  try {
+    for (const { clave, url } of conFoto) {
+      if (!clave) throw new Error('No se encontró el producto recién cargado.')
+      await guardarImagen(tabla, clave, url)
+    }
+    await recargar()
+  } catch (fallo) {
+    toast.error(`El stock se cargó, pero la foto no se guardó: ${fallo.message} Ponela con "Poner foto en el catálogo".`, { duration: 8000 })
+  }
 }
 
 function aBlob(lienzo, tipo, calidad) {

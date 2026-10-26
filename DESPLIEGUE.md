@@ -239,9 +239,20 @@ nadie que no sea administrador puede subir fotos a la cuenta, aunque mire el có
 
 ### Poner una foto
 
-En el panel: `Celulares` (o `Accesorios`) → abrir el modelo → tocar el producto →
-`Poner foto en el catálogo` → `Elegir foto` (desde el celular abre la cámara o la galería)
-→ `Guardar foto`.
+Se puede poner en el momento de cargar el stock o después:
+
+- **Al ingresar**: en `+ Ingresar` (celulares o accesorios) está *Foto para el catálogo* →
+  `Subir foto`. Si se ingresan varias unidades, la foto es para todas.
+- **En un lote de proveedor**: en `+ Lote proveedor` cada modelo tiene su propia *Foto
+  para el catálogo*.
+- **Al editar**: en `Editar` se ve la foto actual y se puede cambiar.
+- **Después**: `Celulares` (o `Accesorios`) → abrir el modelo → tocar el producto →
+  `Poner foto en el catálogo` → `Elegir foto` (desde el celular abre la cámara o la
+  galería) → `Guardar foto`.
+
+Al ingresar, la foto se sube antes que el stock: si la subida falla, no se carga nada y se
+puede volver a intentar. Si el stock se cargó pero la foto no llegó a guardarse, el panel
+lo avisa y la foto se pone después con el botón del producto.
 
 - La foto es del producto (modelo, capacidad, color...), no de cada unidad: si entran más
   equipos iguales, ya salen con la foto. Si se edita el producto (otro color, por

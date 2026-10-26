@@ -143,8 +143,11 @@ function Panel({ correo, alSalir }) {
   }
 
   // Vuelve a leer todo de la base. Se llama despues de cada cambio.
+  // Devuelve lo leido, para quien necesite los datos nuevos en el momento.
   const recargar = useCallback(async () => {
-    setDatos(await leerPanel())
+    const nuevos = await leerPanel()
+    setDatos(nuevos)
+    return nuevos
   }, [])
 
   // Primera lectura, al entrar al panel.
