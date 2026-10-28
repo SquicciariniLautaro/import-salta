@@ -31,8 +31,8 @@ y las actas firmadas conviene el plan Pro: no se pausa y guarda una copia por d�
 ## Paso 2 - Crear las tablas y los permisos
 
 Las migraciones están en `supabase/migrations/` y se aplican **en orden**, de a una. Las
-ocho primeras son el sistema base (el mismo de iPhone DOBB); la novena y la décima traen
-lo que pidió Import Salta.
+ocho primeras son el sistema base (el mismo de iPhone DOBB); de la novena en adelante
+traen lo que pidió Import Salta.
 
 | Orden | Archivo | Qué trae |
 | --- | --- | --- |
@@ -46,6 +46,7 @@ lo que pidió Import Salta.
 | 8 | `20261020120000_garantia_proveedor.sql` | Equipos mandados al proveedor por garantía y pagos de revendedores que se descuentan equipo por equipo. |
 | 9 | `20261021000000_cuotas_y_actas.sql` | **Import Salta**: planes de cuotas con su recargo (salen en el catálogo), cobro con tarjeta en el posnet y actas de entrega y garantía con revisión y firmas. |
 | 10 | `20261026000000_imagenes.sql` | **Import Salta**: una foto por producto (celulares y accesorios) que sale en el catálogo. Las fotos se guardan en Cloudinary (ver *Fotos de los productos*). |
+| 11 | `20261028000000_descuento_efectivo.sql` | **Import Salta**: descuento pagando en efectivo (el catálogo muestra el precio con tarjeta y en efectivo) y el texto de las cuotas sin "en el local con posnet". |
 
 Para cada una:
 
@@ -117,14 +118,16 @@ Para las fotos de los productos hace falta una tercera variable, `CLOUDINARY_URL
 Entrando al panel (`/admin`) → `Ajustes`:
 
 1. **Datos del comercio**: dirección, teléfono y CUIT (salen en el ticket y en el acta).
-2. **Cuotas con tarjeta**: un renglón por plan (3, 6, 9, 12...) con su recargo en %. 0 %
+2. **Precio en efectivo**: el descuento pagando en efectivo, en %, para celulares y para
+   accesorios (y combos). 0 = sin descuento: el catálogo muestra un solo precio.
+3. **Cuotas con tarjeta**: un renglón por plan (3, 6, 9, 12...) con su recargo en %. 0 %
    es sin interés. Mientras no haya planes, el catálogo no muestra cuotas. Los recargos
    los define el dueño según lo que le cobra Payway.
-3. **Garantías**: días de garantía de los celulares (vienen en 30). Se pueden cambiar en
+4. **Garantías**: días de garantía de los celulares (vienen en 30). Se pueden cambiar en
    cada venta.
-4. **Acta de entrega y garantía**: los puntos que se revisan con el cliente (vienen
+5. **Acta de entrega y garantía**: los puntos que se revisan con el cliente (vienen
    cargados: pantalla, Face ID, cámaras, batería, carga, etc.) y las condiciones que firma.
-5. **Listas de opciones** → *Vendedores*: quiénes atienden. Sale en el ticket y en el acta.
+6. **Listas de opciones** → *Vendedores*: quiénes atienden. Sale en el ticket y en el acta.
 
 Y arriba, en el encabezado: el dólar de venta. *Usar el dólar blue de hoy* lo trae de
 DolarApi; después hay que tocar `Guardar`.
@@ -174,18 +177,32 @@ El ingreso acepta cualquier correo y contraseña, y todo vuelve a cero al recarg
 página. Sirve para mostrar el sistema o probar un cambio sin riesgo. Este modo no existe
 en el sitio publicado.
 
+## Precio con tarjeta y en efectivo
+
+- El precio que se carga en el stock (minorista) es el **precio con tarjeta** en un pago.
+- En `Ajustes` → *Precio en efectivo* se elige cuánto se descuenta pagando en efectivo:
+  un porcentaje para los celulares y otro para los accesorios (los combos usan el de los
+  accesorios). Va de 0 % a 90 %, sin decimales; 0 = sin descuento.
+- Con descuento, el catálogo avisa arriba "Pagando en efectivo: X % de descuento" y cada
+  producto muestra los dos precios: *Tarjeta* arriba y *Efectivo* abajo, en verde. El
+  mensaje de WhatsApp también lleva los dos. En los precios por cantidad el descuento se
+  aplica sobre el precio que corresponda a la cantidad.
+- Al vender, debajo del precio aparece el botón *Efectivo* con el precio ya descontado
+  (también en los combos y en el carrito). En la venta queda el precio que se elija.
+- Las cuotas se calculan sobre el precio con tarjeta.
+
 ## Cuotas y cobro con tarjeta
 
-- Se cobra **solo en el local**, con el posnet bancario (Payway). El sistema no cobra
-  online.
+- Se cobra con el posnet del local (Payway) o mandándole un QR al cliente. El sistema
+  no cobra online: solo anota cómo se pagó.
 - El catálogo muestra en cada celular cuánto queda cada cuota de cada plan de `Ajustes`,
   con el recargo ya sumado, y el total cuando hay recargo.
-- Al vender, *Cómo paga* → `Tarjeta (posnet)` → elegir las cuotas. El panel muestra cuánto
-  hay que pasar por el posnet y cuánto queda cada cuota. El recargo se puede cambiar en
+- Al vender, *Cómo paga* → `Tarjeta o QR` → elegir las cuotas. El panel muestra cuánto
+  hay que cobrar y cuánto queda cada cuota. El recargo se puede cambiar en
   el momento.
-- En la venta queda anotado el precio de lista (el recargo es lo que cobra el banco por
+- En la venta queda anotado el precio con tarjeta (el recargo es lo que cobra el banco por
   financiar). En la caja, lo cobrado con tarjeta va junto con las transferencias, en
-  *En el banco*. El ticket dice las cuotas y cuánto se pasó por el posnet.
+  *En el banco*. El ticket dice las cuotas y cuánto se cobró con tarjeta.
 
 ## Actas de entrega y garantía
 
@@ -314,6 +331,7 @@ emite facturas electrónicas de ARCA.
 | "Cloudinary no aceptó la foto: Invalid Signature" | `CLOUDINARY_URL` está mal copiada (o se regeneró la clave en Cloudinary): copiarla de nuevo y `Redeploy`. |
 | "La subida de fotos funciona en el sitio publicado..." | Se está usando `npm run dev`: la función que firma solo corre en Vercel. Probar en el sitio publicado o con `npm run dev:prueba`. |
 | "Algo falló" al guardar una foto | Falta aplicar la migración 10: volver al paso 2. |
+| El catálogo no muestra el precio en efectivo | En `Ajustes` → *Precio en efectivo* el descuento está en 0, o falta la migración 11. Sin la migración 11, el descuento que se guarda en Ajustes vuelve a 0. |
 | *Usar el dólar blue de hoy* no trae nada | DolarApi no respondió: escribir la cotización a mano y `Guardar`. |
 | El ticket sale cortado, muy chico o con una hoja en blanco | En `Ajustes` → *Impresora*, corregir el ancho del rollo; en la ventana de impresión, márgenes en "Ninguno". |
 | Todo dejó de andar después de varios días | El proyecto gratuito se pausó: entrar a Supabase y `Restore project`. |

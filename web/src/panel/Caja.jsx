@@ -173,7 +173,7 @@ function textoDeMedio(movimiento) {
   const efectivo = Math.abs(movimiento.efectivo_ars)
   const transferencia = Math.abs(movimiento.transferencia_ars)
   if (efectivo > 0 && transferencia > 0) return `Efectivo ${pesos(efectivo)} + banco ${pesos(transferencia)}`
-  // "Banco": por transferencia o con tarjeta en el posnet.
+  // "Banco": por transferencia o con tarjeta (posnet o QR).
   return transferencia > 0 ? 'Banco' : 'Efectivo'
 }
 

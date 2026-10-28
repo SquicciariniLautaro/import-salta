@@ -11,8 +11,9 @@ export const MEDIOS = [
   { id: 'efectivo', nombre: 'Efectivo' },
   { id: 'transferencia', nombre: 'Transferencia' },
   { id: 'mixto', nombre: 'Efectivo y transferencia' },
-  // Tarjeta de credito o debito en el posnet del local (Payway).
-  { id: 'tarjeta', nombre: 'Tarjeta (posnet)' },
+  // Tarjeta de credito o debito, en el posnet del local o con un QR que se le
+  // manda al cliente.
+  { id: 'tarjeta', nombre: 'Tarjeta o QR' },
 ]
 
 export function nombreDeMedio(medio) {
@@ -48,7 +49,7 @@ export function cobroParaLaBase(cobro) {
   }
 }
 
-// Lo que se pasa por el posnet al cobrar "monto" con tarjeta: el monto mas el
+// Lo que se cobra (posnet o QR) al cobrar "monto" con tarjeta: el monto mas el
 // recargo de las cuotas, y cuanto queda cada cuota. null si no es con tarjeta.
 export function pagoConTarjeta(cobro, monto) {
   if (cobro.medio !== 'tarjeta') return null
@@ -149,7 +150,7 @@ export function armarComprobante(datos) {
     total_ars: total,
     debe_ars: debe,
     pagos,
-    // Con tarjeta: lo que se paso por el posnet (con el recargo) y cada cuota.
+    // Con tarjeta: lo que se cobro (con el recargo) y cada cuota.
     tarjeta: ORIGENES[datos.origen] ? null : pagoConTarjeta(datos, total - debe),
   }
 }
@@ -160,13 +161,13 @@ export function armarComprobante(datos) {
 // ve solo lo que se pago en el momento.
 
 // Lo que dice el ticket de un pago con tarjeta (ver pagoConTarjeta):
-// "Posnet: 6 cuotas de $ 112.500 (total $ 675.000, recargo 12,5 %)".
+// "Tarjeta: 6 cuotas de $ 112.500 (total $ 675.000, recargo 12,5 %)".
 export function textoDeTarjeta(tarjeta) {
   const recargo = tarjeta.recargo > 0 ? `recargo ${textoDeRecargo(tarjeta.recargo)}` : ''
-  if (tarjeta.cuotas <= 1) return `Posnet: 1 pago de ${pesos(tarjeta.total_ars)}${recargo ? ` (${recargo})` : ''}`
+  if (tarjeta.cuotas <= 1) return `Tarjeta: 1 pago de ${pesos(tarjeta.total_ars)}${recargo ? ` (${recargo})` : ''}`
   return recargo
-    ? `Posnet: ${tarjeta.cuotas} cuotas de ${pesos(tarjeta.cuota_ars)} (total ${pesos(tarjeta.total_ars)}, ${recargo})`
-    : `Posnet: ${tarjeta.cuotas} cuotas sin interés de ${pesos(tarjeta.cuota_ars)}`
+    ? `Tarjeta: ${tarjeta.cuotas} cuotas de ${pesos(tarjeta.cuota_ars)} (total ${pesos(tarjeta.total_ars)}, ${recargo})`
+    : `Tarjeta: ${tarjeta.cuotas} cuotas sin interés de ${pesos(tarjeta.cuota_ars)}`
 }
 
 export const DEUDA_VACIA = { activa: false, monto: null }

@@ -111,7 +111,13 @@ function ModalCarrito({ alCerrar }) {
                 <CampoPesos valor={item.precio} alCambiar={(precio) => cambiarPrecio(posicion, precio)} />
               </label>
               {item.minorista !== undefined && (
-                <ElegirPrecio minorista={item.minorista} mayorista={item.mayorista} valor={item.precio} alElegir={(precio) => cambiarPrecio(posicion, precio)} />
+                <ElegirPrecio
+                  minorista={item.minorista}
+                  mayorista={item.mayorista}
+                  tabla={item.tabla}
+                  valor={item.precio}
+                  alElegir={(precio) => cambiarPrecio(posicion, precio)}
+                />
               )}
             </li>
           ))}

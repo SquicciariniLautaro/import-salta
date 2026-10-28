@@ -54,3 +54,8 @@ insert into public.escalas_precio (clave, desde, moneda, precio) values
 update public.configuracion
    set cuotas_planes = '[{"cuotas": 3, "recargo": 0}, {"cuotas": 6, "recargo": 15}, {"cuotas": 9, "recargo": 25}, {"cuotas": 12, "recargo": 35}]'::jsonb
  where id = 1;
+
+-- Descuento pagando en efectivo, para ver los dos precios en el catalogo.
+update public.configuracion
+   set descuento_efectivo_celulares = 10, descuento_efectivo_accesorios = 20
+ where id = 1;

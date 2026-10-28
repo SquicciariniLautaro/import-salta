@@ -183,6 +183,7 @@ export function ModalVenta({ lote, unidadInicial, alCerrar }) {
           <ElegirPrecio
             minorista={precioSugerido(elegidas.length)}
             mayorista={precioMayorista}
+            tabla={lote.tabla}
             valor={precio}
             alElegir={(valor) => {
               setPrecio(valor)
@@ -418,6 +419,8 @@ export function ModalVentaCombo({ combo, alCerrar }) {
           <span className="mt-0.5 block text-[11px] text-neutral-500">
             Lista del combo: {pesos(aPesos(combo.precio_usd, cotizacion))} · por separado: {pesos(aPesos(combo.lista_usd, cotizacion))}
           </span>
+          {/* Si hay descuento en efectivo para los accesorios, un boton para usarlo. */}
+          <ElegirPrecio minorista={aPesos(combo.precio_usd, cotizacion)} tabla="accesorios" valor={precio} alElegir={setPrecio} />
         </label>
 
         <section className="space-y-3 border-t border-neutral-200 pt-3">

@@ -22,7 +22,7 @@ export function SelectorMedio({ id, valor, alCambiar }) {
 
 // Como se paga una venta o un arreglo. Ademas de efectivo y transferencia
 // permite las dos cosas (ahi pide cuanto fue en efectivo y muestra el resto)
-// y tarjeta en el posnet, en un pago o en las cuotas cargadas en Ajustes.
+// y tarjeta (en el posnet o con un QR), en un pago o en las cuotas de Ajustes.
 // cobro: { medio, efectivo, cuotas, recargo }. total: lo que se cobra, en pesos.
 export function CamposDeCobro({ cobro, alCambiar, total }) {
   const mixto = cobro.medio === 'mixto'
@@ -59,15 +59,15 @@ export function CamposDeCobro({ cobro, alCambiar, total }) {
   )
 }
 
-// En cuantas cuotas se pasa la tarjeta. Las opciones son "1 pago" y los
+// En cuantas cuotas se cobra con tarjeta. Las opciones son "1 pago" y los
 // planes de Ajustes, cada uno con su recargo; el recargo se puede cambiar en
-// el momento (una promo del dia, por ejemplo). Muestra cuanto hay que pasar
-// por el posnet y cuanto queda cada cuota.
+// el momento (una promo del dia, por ejemplo). Muestra cuanto hay que cobrar
+// (en el posnet o en el QR) y cuanto queda cada cuota.
 function CamposDeTarjeta({ cobro, alCambiar, total }) {
   const { configuracion } = usePanel()
   const planes = configuracion.cuotas_planes || []
   const cuotas = cobro.cuotas || 1
-  const posnet = pagoConTarjeta(cobro, total)
+  const conTarjeta = pagoConTarjeta(cobro, total)
   // Si alguien elige un plan que despues se saco de Ajustes, igual se ve.
   const conocido = cuotas === 1 || planes.some((plan) => plan.cuotas === cuotas)
 
@@ -107,12 +107,12 @@ function CamposDeTarjeta({ cobro, alCambiar, total }) {
       </label>
       <div className="col-span-2 rounded-lg bg-neutral-100 px-3 py-2 text-sm">
         <p className="flex items-baseline justify-between gap-2">
-          <span className="text-neutral-600">Pasar por el posnet</span>
-          <span className="font-bold whitespace-nowrap">{pesos(posnet.total_ars)}</span>
+          <span className="text-neutral-600">Cobrar con tarjeta o QR</span>
+          <span className="font-bold whitespace-nowrap">{pesos(conTarjeta.total_ars)}</span>
         </p>
         <p className="text-xs text-neutral-500">
-          {cuotas === 1 ? 'En un pago.' : `${cuotas} cuotas de ${pesos(posnet.cuota_ars)}.`}
-          {posnet.recargo > 0 && ` Incluye ${textoDeRecargo(posnet.recargo)} de recargo. En la venta queda el precio de lista.`}
+          {cuotas === 1 ? 'En un pago.' : `${cuotas} cuotas de ${pesos(conTarjeta.cuota_ars)}.`}
+          {conTarjeta.recargo > 0 && ` Incluye ${textoDeRecargo(conTarjeta.recargo)} de recargo. En la venta queda el precio con tarjeta.`}
         </p>
       </div>
       {planes.length === 0 && (

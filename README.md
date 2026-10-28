@@ -4,7 +4,8 @@ Sistema de stock y ventas para Import Salta (iPhone nuevos y usados, Salta). Dos
 sobre la misma base:
 
 - **Catálogo público** (`/`): fondo negro, el logo aparece al entrar y el stock va en una
-  tabla por modelo (capacidad y color, batería, precio en pesos y WhatsApp), con la mejor
+  tabla por modelo (capacidad y color, batería, precio en pesos con tarjeta y en efectivo,
+  y WhatsApp), con la mejor
   cuota debajo de cada equipo y *Ver cuotas* para ver todos los planes. Cada consulta va
   a WhatsApp.
 - **Panel de administración** (`/admin`): solo para el dueño y quienes atienden.
@@ -13,9 +14,13 @@ Parte del sistema de iPhone DOBB (stock con IMEI, ventas, permutas, revendedores
 clientes, caja, proveedores, servicio técnico, garantías, tickets) y le suma lo que pidió
 Import Salta:
 
+- **Precio con tarjeta y en efectivo**: el precio cargado en el stock es el precio con
+  tarjeta. En `Ajustes` el dueño elige el descuento pagando en efectivo (10 %, 20 %,
+  30 %...), uno para celulares y otro para accesorios. El catálogo muestra los dos precios
+  y al vender aparece el botón *Efectivo*.
 - **Cuotas**: el dueño elige en `Ajustes` los planes (3, 6, 9, 12...) y el recargo de
-  cada uno. El catálogo los muestra en cada equipo. Se cobra solo en el local, con el
-  posnet bancario Payway, y al vender se elige *Tarjeta (posnet)* y las cuotas.
+  cada uno. El catálogo los muestra en cada equipo. Se cobra con el posnet del local o
+  mandándole un QR al cliente, y al vender se elige *Tarjeta o QR* y las cuotas.
 - **Acta de entrega y garantía**: cada celular vendido lleva un acta con la revisión punto
   por punto (pantalla, Face ID, cámaras, batería...), los días de garantía (30 o lo que
   elija el dueño) y las firmas del cliente y del vendedor en la pantalla. Sin la revisión

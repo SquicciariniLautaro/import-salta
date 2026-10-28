@@ -1,7 +1,8 @@
 // Catalogo.jsx
 // Catalogo publico: lo ve cualquiera, sin iniciar sesion. Muestra el stock
-// disponible con precios en pesos, cuanto queda cada cuota si se paga con
-// tarjeta en el local, y lleva cada consulta a WhatsApp.
+// disponible con precios en pesos (con tarjeta y, si el dueno puso un
+// descuento, en efectivo), cuanto queda cada cuota con tarjeta, y lleva cada
+// consulta a WhatsApp.
 //
 // El formato es el que pidio el cliente: una tabla por familia (iPhone 13,
 // iPhone 14 Pro...) con un renglon por equipo: capacidad y color, bateria,
@@ -21,6 +22,7 @@ import { NEGOCIO, rutaPublica } from './negocio.js'
 import { aPesos, enlaceAccesorio, enlaceCelular, normalizar, pesos, precioSegunCantidad } from './formato.js'
 import { agruparPorFamilia, tituloDeFamilia } from './servicios/stock.js'
 import { cuotasDe, planMasLargo, planesPara } from './servicios/cuotas.js'
+import { descuentoPara, precioEnEfectivo } from './servicios/efectivo.js'
 import PuntoColor from './componentes/PuntoColor.jsx'
 import Foto from './componentes/Foto.jsx'
 import Pie from './componentes/Pie.jsx'
@@ -68,6 +70,16 @@ function IconoTarjeta({ clase = 'h-4 w-4' }) {
     <svg viewBox="0 0 24 24" className={clase} fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
       <rect x="2.5" y="5" width="19" height="14" rx="2.5" />
       <path d="M2.5 9.5h19M6 15h4" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+function IconoBillete({ clase = 'h-4 w-4' }) {
+  return (
+    <svg viewBox="0 0 24 24" className={clase} fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+      <rect x="2.5" y="6" width="19" height="12" rx="2" />
+      <circle cx="12" cy="12" r="2.6" />
+      <path d="M6 9.5v5M18 9.5v5" strokeLinecap="round" />
     </svg>
   )
 }
@@ -235,10 +247,44 @@ function AvisoCuotas({ cuotas }) {
           {largoSinInteres && <span className="text-verde"> · {largoSinInteres.cuotas} sin interés</span>}
         </p>
         <p className="text-xs break-words text-neutral-500">
-          {cuotas.leyenda || `Con tarjeta de crédito, en el local, con posnet ${NEGOCIO.posnet}.`}
+          {cuotas.leyenda || 'Con tarjeta de crédito bancaria.'}
         </p>
       </div>
     </div>
+  )
+}
+
+// Aviso del descuento pagando en efectivo. Solo aparece si el dueno puso uno
+// para la pestana que se esta mirando.
+function AvisoEfectivo({ descuento }) {
+  if (!(descuento > 0)) return null
+  return (
+    <div className="flex items-start gap-3 border-b border-borde px-3 py-2.5">
+      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-verde/40 text-verde">
+        <IconoBillete />
+      </span>
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-blanco">
+          Pagando en efectivo: <span className="text-verde">{descuento} % de descuento</span>
+        </p>
+        <p className="text-xs break-words text-neutral-500">En cada producto, arriba el precio con tarjeta y abajo el precio en efectivo.</p>
+      </div>
+    </div>
+  )
+}
+
+// El precio de un renglon. Con descuento en efectivo van los dos: con tarjeta
+// arriba y en efectivo abajo, en verde.
+function Precio({ precioArs, descuento }) {
+  const efectivo = precioEnEfectivo(precioArs, descuento)
+  if (efectivo === null) return pesos(precioArs)
+  return (
+    <span className="block leading-tight">
+      <span className="block text-[10px] font-normal text-neutral-500">Tarjeta</span>
+      <span className="block">{pesos(precioArs)}</span>
+      <span className="mt-1 block text-[10px] font-normal text-verde">Efectivo</span>
+      <span className="block text-verde">{pesos(efectivo)}</span>
+    </span>
   )
 }
 
@@ -276,7 +322,7 @@ function DetalleCuotas({ precioArs, planes }) {
     <div className="animate-aparecer rounded-lg border border-borde bg-superficie px-3 py-2">
       <p className="flex items-center gap-1.5 text-[11px] font-medium tracking-[0.12em] text-neutral-500 uppercase">
         <IconoTarjeta clase="h-3.5 w-3.5" />
-        Cuotas con tarjeta · en el local
+        Cuotas con tarjeta de crédito
       </p>
       <ul className="mt-1.5 space-y-1">
         {cuotasDe(precioArs, planes).map((plan) => (
@@ -316,6 +362,7 @@ function Separador({ titulo, columnas }) {
 function TablaCelulares({ lotes, catalogo }) {
   const grupos = agruparPorFamilia(lotes)
   const planes = planesPara('celulares', catalogo.cuotas)
+  const descuento = descuentoPara('celulares', catalogo.efectivo)
   const conFotos = lotes.some((lote) => lote.imagen)
 
   return (
@@ -340,7 +387,14 @@ function TablaCelulares({ lotes, catalogo }) {
           <Fragment key={`${grupo.marca}|${grupo.familia}`}>
             <Separador titulo={tituloDeFamilia(grupo)} columnas={4} />
             {grupo.lotes.map((lote) => (
-              <FilaCelular key={lote.clave} lote={lote} cotizacion={catalogo.cotizacion} planes={planes} conFotos={conFotos} />
+              <FilaCelular
+                key={lote.clave}
+                lote={lote}
+                cotizacion={catalogo.cotizacion}
+                planes={planes}
+                descuento={descuento}
+                conFotos={conFotos}
+              />
             ))}
           </Fragment>
         ))}
@@ -349,7 +403,7 @@ function TablaCelulares({ lotes, catalogo }) {
   )
 }
 
-function FilaCelular({ lote, cotizacion, planes, conFotos }) {
+function FilaCelular({ lote, cotizacion, planes, descuento, conFotos }) {
   const [abierto, setAbierto] = useState(false)
   const precioArs = aPesos(lote.precio_usd, cotizacion)
 
@@ -371,9 +425,11 @@ function FilaCelular({ lote, cotizacion, planes, conFotos }) {
           </div>
         </td>
         <td className="px-1 py-2 text-center align-middle text-sm text-neutral-700">{lote.bateria || '-'}</td>
-        <td className="px-1 py-2 text-right align-middle text-sm font-semibold whitespace-nowrap text-blanco">{pesos(precioArs)}</td>
+        <td className="px-1 py-2 text-right align-middle text-sm font-semibold whitespace-nowrap text-blanco">
+          <Precio precioArs={precioArs} descuento={descuento} />
+        </td>
         <td className="py-2 pr-2 text-right align-middle">
-          <BotonWhatsApp enlace={enlaceCelular(lote, cotizacion)} descripcion={`${lote.modelo} ${lote.capacidad}`} />
+          <BotonWhatsApp enlace={enlaceCelular(lote, cotizacion, descuento)} descripcion={`${lote.modelo} ${lote.capacidad}`} />
         </td>
       </tr>
       {abierto && (
@@ -390,6 +446,7 @@ function FilaCelular({ lote, cotizacion, planes, conFotos }) {
 function TablaAccesorios({ lotes, catalogo }) {
   const grupos = agruparPorFamilia(lotes)
   const planes = planesPara('accesorios', catalogo.cuotas)
+  const descuento = descuentoPara('accesorios', catalogo.efectivo)
   const conFotos = lotes.some((lote) => lote.imagen)
 
   return (
@@ -411,7 +468,14 @@ function TablaAccesorios({ lotes, catalogo }) {
           <Fragment key={grupo.familia}>
             <Separador titulo={grupo.familia} columnas={3} />
             {grupo.lotes.map((lote) => (
-              <FilaAccesorio key={lote.clave} lote={lote} cotizacion={catalogo.cotizacion} planes={planes} conFotos={conFotos} />
+              <FilaAccesorio
+                key={lote.clave}
+                lote={lote}
+                cotizacion={catalogo.cotizacion}
+                planes={planes}
+                descuento={descuento}
+                conFotos={conFotos}
+              />
             ))}
           </Fragment>
         ))}
@@ -420,7 +484,7 @@ function TablaAccesorios({ lotes, catalogo }) {
   )
 }
 
-function FilaAccesorio({ lote, cotizacion, planes, conFotos }) {
+function FilaAccesorio({ lote, cotizacion, planes, descuento, conFotos }) {
   // Que se ve abajo del renglon: nada, los precios por cantidad o las cuotas.
   const [abierto, setAbierto] = useState(null) // null | 'escalas' | 'cuotas'
   const tieneEscalas = lote.escalas.length > 0
@@ -454,15 +518,21 @@ function FilaAccesorio({ lote, cotizacion, planes, conFotos }) {
             </div>
           </div>
         </td>
-        <td className="px-1 py-2 text-right align-middle text-sm font-semibold whitespace-nowrap text-blanco">{pesos(precioArs)}</td>
+        <td className="px-1 py-2 text-right align-middle text-sm font-semibold whitespace-nowrap text-blanco">
+          <Precio precioArs={precioArs} descuento={descuento} />
+        </td>
         <td className="py-2 pr-2 text-right align-middle">
-          <BotonWhatsApp enlace={enlaceAccesorio(lote, 1, cotizacion)} descripcion={`${lote.tipo} ${lote.modelo}`} />
+          <BotonWhatsApp enlace={enlaceAccesorio(lote, 1, cotizacion, descuento)} descripcion={`${lote.tipo} ${lote.modelo}`} />
         </td>
       </tr>
       {abierto && (
         <tr className="border-b border-borde">
           <td colSpan={3} className="px-3 pb-3">
-            {abierto === 'escalas' ? <EscalaDePrecios lote={lote} cotizacion={cotizacion} /> : <DetalleCuotas precioArs={precioArs} planes={planes} />}
+            {abierto === 'escalas' ? (
+              <EscalaDePrecios lote={lote} cotizacion={cotizacion} descuento={descuento} />
+            ) : (
+              <DetalleCuotas precioArs={precioArs} planes={planes} />
+            )}
           </td>
         </tr>
       )}
@@ -472,12 +542,15 @@ function FilaAccesorio({ lote, cotizacion, planes, conFotos }) {
 
 // Panel de precios por cantidad: la escala completa, atajos de cantidad, el
 // total y un enlace de WhatsApp que lleva cantidad, precio por unidad y total.
-function EscalaDePrecios({ lote, cotizacion }) {
+// Los precios de la escala son con tarjeta; el descuento en efectivo se aplica
+// sobre el que corresponda a la cantidad.
+function EscalaDePrecios({ lote, cotizacion, descuento }) {
   const [cantidad, setCantidad] = useState(1)
 
   const lista = aPesos(lote.precio_usd, cotizacion)
   const porUnidad = precioSegunCantidad(lote, cantidad, cotizacion)
   const primerTramo = lote.escalas[0].desde
+  const efectivo = precioEnEfectivo(porUnidad, descuento)
 
   // Atajos: 1 unidad y el arranque de cada tramo.
   const atajos = [...new Set([1, ...lote.escalas.map((tramo) => tramo.desde)])]
@@ -538,9 +611,15 @@ function EscalaDePrecios({ lote, cotizacion }) {
         </span>
         <span className="text-base font-bold whitespace-nowrap text-blanco">{pesos(porUnidad * cantidad)}</span>
       </p>
+      {efectivo !== null && (
+        <p className="flex items-baseline justify-between gap-2 text-sm text-verde">
+          <span>En efectivo</span>
+          <span className="font-semibold whitespace-nowrap">{pesos(efectivo * cantidad)}</span>
+        </p>
+      )}
 
       <a
-        href={enlaceAccesorio(lote, cantidad, cotizacion)}
+        href={enlaceAccesorio(lote, cantidad, cotizacion, descuento)}
         target="_blank"
         rel="noopener noreferrer"
         className="boton boton-verde mt-2 w-full"
@@ -576,7 +655,7 @@ function Contacto() {
           <IconoTarjeta clase="mt-0.5 h-5 w-5 shrink-0 text-oro" />
           <p className="text-xs text-neutral-600">
             <span className="block text-sm font-semibold text-blanco">Medios de pago</span>
-            Efectivo, transferencia y tarjeta en cuotas. Los pagos se hacen en el local, con posnet {NEGOCIO.posnet}.
+            Efectivo, transferencia y tarjeta de crédito en cuotas.
           </p>
         </div>
         <div className="flex items-start gap-3">
@@ -671,6 +750,7 @@ export default function Catalogo() {
       </div>
 
       <main className="mx-auto w-full max-w-2xl flex-1">
+        {carga.datos && <AvisoEfectivo descuento={descuentoPara(pestana, carga.datos.efectivo)} />}
         {carga.datos && <AvisoCuotas cuotas={carga.datos.cuotas} />}
 
         {carga.fase === 'cargando' && <Cargando />}
@@ -702,7 +782,7 @@ export default function Catalogo() {
               <TablaAccesorios lotes={visibles} catalogo={carga.datos} />
             )}
             <p className="px-3 py-4 text-center text-xs text-neutral-500">
-              Precios en pesos. Recibimos efectivo, transferencia y tarjeta en el local.
+              Precios en pesos. Recibimos efectivo, transferencia y tarjeta.
             </p>
           </div>
         )}

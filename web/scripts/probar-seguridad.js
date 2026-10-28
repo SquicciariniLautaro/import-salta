@@ -69,6 +69,8 @@ console.log('1. El catalogo publico no filtra datos privados')
       'cuotas', 'planes', 'recargo', 'leyenda',
       // La foto de cada lote (direccion de Cloudinary, publica).
       'imagen',
+      // El descuento pagando en efectivo: { efectivo: { celulares, accesorios } }.
+      'efectivo',
     ])
     const sobran = [...nombresDeCampos(JSON.parse(texto))].filter((campo) => !permitidos.has(campo))
     informar(sobran.length === 0, 'solo trae campos publicos', sobran.join(', '))
