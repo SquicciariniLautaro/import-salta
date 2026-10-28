@@ -14,7 +14,7 @@ import PuntoColor from '../componentes/PuntoColor.jsx'
 import Foto from '../componentes/Foto.jsx'
 import { borrarUnidades, editarImei, guardarEscalas } from '../apiAdmin.js'
 import { aPesos, dolares, normalizar, pesos, soloFecha } from '../formato.js'
-import { agruparPorFamilia, proveedoresDelLote, resumirStock, tituloDeFamilia } from '../servicios/stock.js'
+import { agruparPorFamilia, comprasPorDia, proveedoresDelLote, resumirStock, tituloDeFamilia } from '../servicios/stock.js'
 import { describir } from '../servicios/texto.js'
 import { SeccionCombos } from './Combos.jsx'
 import { ModalCompra } from './Compra.jsx'
@@ -326,6 +326,7 @@ function Lote({ lote, abierto, alAlternar, alAbrir }) {
             <span className="text-neutral-500">Proveedor: </span>
             {proveedoresDelLote(lote, datos.proveedores).texto}
           </p>
+          <FechasDeCompra unidades={lote.disponibles} />
 
           <div className="grid grid-cols-2 gap-2">
             <button type="button" className="boton boton-verde col-span-2" disabled={!hayEnLocal} onClick={() => alAbrir('vender')}>
@@ -371,6 +372,21 @@ function Lote({ lote, abierto, alAlternar, alAbrir }) {
   )
 }
 
+// Cuando se compraron (entraron al stock) las unidades que estan en el local.
+// Si entraron en dias distintos, cada dia con cuantas: "20/10/26 (2 u.) · 27/10/26 (4 u.)".
+function FechasDeCompra({ unidades }) {
+  const dias = comprasPorDia(unidades)
+  if (dias.length === 0) return null
+  return (
+    <p className="text-xs break-words text-neutral-600">
+      <span className="text-neutral-500">Comprado: </span>
+      {dias.length === 1
+        ? `el ${soloFecha(dias[0].fecha)}`
+        : dias.map((dia) => `${soloFecha(dia.fecha)} (${dia.cantidad} u.)`).join(' · ')}
+    </p>
+  )
+}
+
 // Junta las unidades por la persona que las tiene: [{ nombre, cantidad }].
 function porPersona(unidades) {
   const cuenta = new Map()
@@ -404,6 +420,7 @@ function FueraDelLocal({ lote, alIr }) {
                   <span className="block text-[11px] text-neutral-500">
                     {unidad.imei ? <span className="font-mono">{unidad.imei}</span> : 'Sin IMEI'}
                     {unidad.fecha_revendedor && ` · desde el ${soloFecha(unidad.fecha_revendedor)}`}
+                    {unidad.fecha_ingreso && ` · comprado el ${soloFecha(unidad.fecha_ingreso)}`}
                   </span>
                 </span>
                 <span className="shrink-0 text-right text-xs whitespace-nowrap text-neutral-600">

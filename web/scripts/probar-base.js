@@ -1427,6 +1427,28 @@ await probar('el descuento en efectivo se guarda en Ajustes y sale en el catalog
 })
 
 // ===========================================================================
+console.log('\nImport Salta: fecha de compra y de venta')
+
+await probar('el historial de ventas trae la fecha de compra de cada unidad vendida', async () => {
+  await admin('ingresar_accesorios', {
+    p_tipo: 'cable', p_modelo: 'fecha de compra', p_color: '', p_detalles: '', p_costo_usd: 1, p_precio_usd: 3, p_cantidad: 1,
+  })
+  const [id] = await idsDe('accesorios', 'FECHA DE COMPRA')
+  // Como si se hubiera comprado hace diez dias.
+  await sql(`update public.accesorios set fecha_ingreso = now() - interval '10 days' where id = $1`, [id])
+  const comprado = (await unidad('accesorios', id)).fecha_ingreso
+  await admin('vender', { p_celulares: [], p_accesorios: [{ id, precio_usd: 3 }] })
+
+  const vendida = (await admin('ventas_datos')).accesorios.find((otra) => Number(otra.id) === id)
+  assert.equal(new Date(vendida.fecha_ingreso).getTime(), new Date(comprado).getTime())
+  assert.ok(new Date(vendida.fecha_venta) - new Date(vendida.fecha_ingreso) >= 10 * 24 * 3600 * 1000 - 1000)
+  // Los celulares vendidos tambien la traen.
+  assert.ok((await admin('ventas_datos')).celulares.every((celular) => celular.fecha_ingreso))
+  // Y en el stock, cada unidad trae la suya.
+  assert.ok((await admin('panel_datos')).accesorios.every((accesorio) => accesorio.fecha_ingreso))
+})
+
+// ===========================================================================
 console.log('\nstock inicial del cliente (supabase/stock_inicial.sql)')
 await probar('se carga sobre una base vacia y no sale en el catalogo hasta tener precio', async () => {
   const limpia = await crearBaseLocal({

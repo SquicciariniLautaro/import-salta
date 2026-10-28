@@ -4,6 +4,7 @@
 import { NEGOCIO } from './negocio.js'
 import { aDolares, aPesos } from './servicios/precios.js'
 import { precioEnEfectivo } from './servicios/efectivo.js'
+import { comprasPorDia } from './servicios/stock.js'
 
 // Se vuelven a exportar para que las pantallas las tomen de un solo lugar.
 export { aDolares, aPesos }
@@ -93,6 +94,15 @@ export function fechaCorta(fecha) {
     // Reloj de 24 horas: "18:30" en vez de "6:30 p. m.".
     hour12: false,
   })
+}
+
+// Cuando se compraron unas unidades (el dia que entraron al stock):
+// "el 22/10/26" o "entre el 20/10/26 y el 27/10/26". '' si ninguna tiene fecha.
+export function fechaDeCompra(unidades) {
+  const dias = comprasPorDia(unidades)
+  if (dias.length === 0) return ''
+  if (dias.length === 1) return `el ${soloFecha(dias[0].fecha)}`
+  return `entre el ${soloFecha(dias[0].fecha)} y el ${soloFecha(dias[dias.length - 1].fecha)}`
 }
 
 // "13/10/26": solo el dia, para vencimientos de garantia.

@@ -25,7 +25,8 @@ import { firmaATexto, hayFirma, marcarRestantes, problemaDeActa, revisionInicial
 import { nombreDeModelo } from '../src/servicios/texto.js'
 import { armarCombos, venderCombo } from '../src/servicios/combos.js'
 import { proveedoresDelLote } from '../src/servicios/stock.js'
-import { enlaceAccesorio, enlaceCelular, extraerImeis } from '../src/formato.js'
+import { enlaceAccesorio, enlaceCelular, extraerImeis, fechaDeCompra, soloFecha } from '../src/formato.js'
+import { comprasPorDia } from '../src/servicios/stock.js'
 import { descuentoPara, descuentosDe, precioEnEfectivo, problemaDeDescuento } from '../src/servicios/efectivo.js'
 import { claveDeLoteIngresado, urlImagen } from '../src/servicios/imagenes.js'
 import { datosDeSubida, firmar, leerCredenciales } from '../api/_cloudinary.js'
@@ -264,9 +265,35 @@ probar('los pagos a cuenta figuran como cobro con ganancia estimada, y los descu
 probar('el CSV escapa comillas y separa con punto y coma', () => {
   const csv = aCsv([{ fecha: '2026-10-05T15:00:00Z', descripcion: 'FUNDA "PRO"', detalle: '', cantidad: 2, precio_usd: 4, cobrado_ars: 8000, ganancia_usd: 5, comprador: '' }])
   const [encabezado, fila] = csv.split('\r\n')
-  assert.equal(encabezado.split(';').length, 8)
+  assert.equal(encabezado.split(';').length, 9)
   assert.ok(fila.includes('"FUNDA ""PRO"""'))
   assert.ok(fila.includes('"8000";"5.00"'))
+})
+probar('el CSV lleva la fecha de compra: un dia, o desde y hasta si entraron en dias distintos', () => {
+  const renglon = { fecha: '2026-10-28T15:00:00Z', descripcion: 'FUNDA', detalle: '', cantidad: 2, precio_usd: 4, cobrado_ars: 8000, ganancia_usd: 5, comprador: '' }
+  const compraDe = (unidades) => aCsv([{ ...renglon, unidades }]).split('\r\n')[1].split(';')[1]
+  const dia = (fecha) => `"${new Date(fecha).toLocaleDateString('es-AR')}"`
+  assert.equal(compraDe([{ fecha_ingreso: '2026-10-20T15:00:00Z' }, { fecha_ingreso: '2026-10-20T16:00:00Z' }]), dia('2026-10-20T15:00:00Z'))
+  assert.equal(
+    compraDe([{ fecha_ingreso: '2026-10-27T15:00:00Z' }, { fecha_ingreso: '2026-10-20T15:00:00Z' }]),
+    `"${new Date('2026-10-20T15:00:00Z').toLocaleDateString('es-AR')} a ${new Date('2026-10-27T15:00:00Z').toLocaleDateString('es-AR')}"`,
+  )
+  // Sin la fecha (antes de la migracion 12) la celda queda vacia.
+  assert.equal(compraDe([{}]), '""')
+})
+
+probar('comprasPorDia junta las unidades por el dia en que entraron, del mas viejo al mas nuevo', () => {
+  const unidades = [
+    { fecha_ingreso: '2026-10-27T15:00:00Z' },
+    { fecha_ingreso: '2026-10-20T14:00:00Z' },
+    { fecha_ingreso: '2026-10-27T18:00:00Z' },
+    { fecha_ingreso: null },
+  ]
+  assert.deepEqual(comprasPorDia(unidades).map((dia) => [dia.dia, dia.cantidad]), [['2026-10-20', 1], ['2026-10-27', 2]])
+  assert.deepEqual(comprasPorDia([]), [])
+  assert.equal(fechaDeCompra(unidades.slice(0, 2)), `entre el ${soloFecha('2026-10-20T14:00:00Z')} y el ${soloFecha('2026-10-27T15:00:00Z')}`)
+  assert.equal(fechaDeCompra([unidades[0], unidades[2]]), `el ${soloFecha('2026-10-27T15:00:00Z')}`)
+  assert.equal(fechaDeCompra([{}]), '')
 })
 
 console.log('comprobante')

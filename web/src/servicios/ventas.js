@@ -7,6 +7,7 @@
 
 import { nombreDeMedio } from './comprobante.js'
 import { describir } from './texto.js'
+import { comprasPorDia } from './stock.js'
 
 // Numeros de una unidad vendida.
 export function calcularUnidad(unidad) {
@@ -139,10 +140,17 @@ export function totalizar(renglones) {
 // que es lo que espera Excel en espanol.
 export function aCsv(renglones) {
   const celda = (valor) => `"${String(valor ?? '').replaceAll('"', '""')}"`
-  const filas = [['Fecha', 'Detalle', 'Cantidad', 'Precio unidad USD', 'Cobrado ARS', 'Ganancia USD', 'Comprador', 'Medio de pago']]
+  const filas = [['Fecha de venta', 'Fecha de compra', 'Detalle', 'Cantidad', 'Precio unidad USD', 'Cobrado ARS', 'Ganancia USD', 'Comprador', 'Medio de pago']]
+  const dia = (fecha) => new Date(fecha).toLocaleDateString('es-AR')
   for (const renglon of renglones) {
+    // Si las unidades del renglon entraron en dias distintos: "20/10/2026 a 27/10/2026".
+    const compras = comprasPorDia(renglon.unidades || [])
+    let compra = ''
+    if (compras.length === 1) compra = dia(compras[0].fecha)
+    else if (compras.length > 1) compra = `${dia(compras[0].fecha)} a ${dia(compras[compras.length - 1].fecha)}`
     filas.push([
       new Date(renglon.fecha).toLocaleString('es-AR'),
+      compra,
       [renglon.descripcion, renglon.detalle].filter(Boolean).join(' - '),
       renglon.cantidad || '',
       renglon.precio_usd ?? '',
