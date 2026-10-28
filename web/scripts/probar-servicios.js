@@ -25,7 +25,8 @@ import { firmaATexto, hayFirma, marcarRestantes, problemaDeActa, revisionInicial
 import { nombreDeModelo } from '../src/servicios/texto.js'
 import { armarCombos, venderCombo } from '../src/servicios/combos.js'
 import { proveedoresDelLote } from '../src/servicios/stock.js'
-import { extraerImeis } from '../src/formato.js'
+import { enlaceAccesorio, enlaceCelular, extraerImeis } from '../src/formato.js'
+import { descuentoPara, descuentosDe, precioEnEfectivo, problemaDeDescuento } from '../src/servicios/efectivo.js'
 import { claveDeLoteIngresado, urlImagen } from '../src/servicios/imagenes.js'
 import { datosDeSubida, firmar, leerCredenciales } from '../api/_cloudinary.js'
 import {
@@ -678,9 +679,9 @@ probar('cobrar con tarjeta manda las cuotas a la base y el ticket dice cuanto qu
   assert.deepEqual(repartirCobro({ medio: 'tarjeta', efectivo_ars: 100 }, 5000), { efectivo_ars: 0, transferencia_ars: 5000 })
 })
 probar('el ticket dice en cuantas cuotas y de cuanto se paso la tarjeta', () => {
-  assert.equal(textoDeTarjeta({ cuotas: 6, recargo: 12.5, total_ars: 675000, cuota_ars: 112500 }), 'Posnet: 6 cuotas de $ 112.500 (total $ 675.000, recargo 12,5 %)')
-  assert.equal(textoDeTarjeta({ cuotas: 3, recargo: 0, total_ars: 600000, cuota_ars: 200000 }), 'Posnet: 3 cuotas sin interés de $ 200.000')
-  assert.equal(textoDeTarjeta({ cuotas: 1, recargo: 0, total_ars: 600000, cuota_ars: 600000 }), 'Posnet: 1 pago de $ 600.000')
+  assert.equal(textoDeTarjeta({ cuotas: 6, recargo: 12.5, total_ars: 675000, cuota_ars: 112500 }), 'Tarjeta: 6 cuotas de $ 112.500 (total $ 675.000, recargo 12,5 %)')
+  assert.equal(textoDeTarjeta({ cuotas: 3, recargo: 0, total_ars: 600000, cuota_ars: 200000 }), 'Tarjeta: 3 cuotas sin interés de $ 200.000')
+  assert.equal(textoDeTarjeta({ cuotas: 1, recargo: 0, total_ars: 600000, cuota_ars: 600000 }), 'Tarjeta: 1 pago de $ 600.000')
 })
 probar('los modelos se escriben lindos en el catalogo', () => {
   assert.equal(nombreDeModelo('IPHONE 13 PRO MAX'), 'iPhone 13 Pro Max')
@@ -778,6 +779,46 @@ probar('armarCatalogo pasa la foto de cada lote; los combos no tienen', () => {
   })
   assert.equal(catalogo.celulares[0].imagen, 'https://res.cloudinary.com/n/image/upload/a.webp')
   assert.deepEqual(catalogo.accesorios.map((lote) => lote.imagen), [null, null])
+})
+
+probar('precio en efectivo: el precio con tarjeta menos el descuento, en pesos enteros', () => {
+  assert.equal(precioEnEfectivo(1000000, 10), 900000)
+  assert.equal(precioEnEfectivo(1000000, 30), 700000)
+  assert.equal(precioEnEfectivo(333333, 20), 266666)
+  // Sin descuento (o sin precio) no hay precio en efectivo.
+  assert.equal(precioEnEfectivo(1000000, 0), null)
+  assert.equal(precioEnEfectivo(0, 20), null)
+  // Cada tabla con el suyo; lo que no es un porcentaje valido cuenta como 0.
+  const descuentos = descuentosDe({ descuento_efectivo_celulares: 10, descuento_efectivo_accesorios: 30 })
+  assert.deepEqual(descuentos, { celulares: 10, accesorios: 30 })
+  assert.equal(descuentoPara('celulares', descuentos), 10)
+  assert.equal(descuentoPara('accesorios', descuentos), 30)
+  assert.equal(descuentoPara('celulares', { celulares: 95 }), 0)
+  // Sin la migracion la configuracion no los trae: 0.
+  assert.deepEqual(descuentosDe({}), { celulares: 0, accesorios: 0 })
+})
+
+probar('el descuento que se escribe en Ajustes va de 0 a 90, sin decimales', () => {
+  for (const bueno of ['0', '10', '20', '30', '90']) assert.equal(problemaDeDescuento(bueno), '')
+  for (const malo of ['', '-5', '91', '12.5', 'diez']) assert.match(problemaDeDescuento(malo), /0 % a 90 %/)
+})
+
+probar('armarCatalogo trae el descuento en efectivo, y 0 si la base no lo manda', () => {
+  const crudo = { cotizacion: 1000, celulares: [], accesorios: [], escalas: [], combos: [] }
+  assert.deepEqual(armarCatalogo(crudo).efectivo, { celulares: 0, accesorios: 0 })
+  assert.deepEqual(armarCatalogo({ ...crudo, efectivo: { celulares: 10, accesorios: 20 } }).efectivo, { celulares: 10, accesorios: 20 })
+})
+
+probar('el mensaje de WhatsApp lleva el precio con tarjeta y en efectivo', () => {
+  const texto = (enlace) => decodeURIComponent(enlace.split('?text=')[1])
+  const celular = { modelo: 'IPHONE 13', capacidad: '128GB', color: 'AZUL', bateria: '88%', detalles: '', precio_usd: 400 }
+  assert.ok(texto(enlaceCelular(celular, 1000)).endsWith('Precio: $ 400.000'))
+  assert.ok(texto(enlaceCelular(celular, 1000, 10)).endsWith('Precio con tarjeta: $ 400.000\nEn efectivo: $ 360.000'))
+  // Accesorio: el descuento va sobre el precio que corresponde a la cantidad.
+  const funda = { tipo: 'FUNDA', modelo: 'SILICONA', color: '', detalles: '', precio_usd: 10, escalas: [{ desde: 3, precio_ars: 7000 }] }
+  assert.ok(texto(enlaceAccesorio(funda, 2, 1000, 20)).endsWith('Precio por unidad con tarjeta: $ 10.000\nEn efectivo: $ 8.000 c/u\nTotal: $ 20.000 (en efectivo $ 16.000)'))
+  assert.ok(texto(enlaceAccesorio(funda, 3, 1000, 20)).endsWith('Precio por unidad con tarjeta: $ 7.000\nEn efectivo: $ 5.600 c/u\nTotal: $ 21.000 (en efectivo $ 16.800)'))
+  assert.ok(texto(enlaceAccesorio(funda, 3, 1000)).endsWith('Precio por unidad: $ 7.000\nTotal: $ 21.000'))
 })
 
 console.log(process.exitCode ? '\nHay pruebas que fallan.' : `\nLas ${pasaron} pruebas pasaron.`)

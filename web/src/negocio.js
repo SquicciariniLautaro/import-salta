@@ -9,8 +9,6 @@ export const NEGOCIO = {
   // Numero de WhatsApp en formato internacional, solo digitos (387 479-6029).
   whatsapp: '5493874796029',
   instagram: 'https://www.instagram.com/import_salta2025/',
-  // Con que se cobra en el local. Sale en el catalogo junto a las cuotas.
-  posnet: 'Payway',
 }
 
 // Direccion de un archivo de web/public/ (el logo, los iconos). Si algun dia

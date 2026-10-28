@@ -3,6 +3,7 @@
 
 import { NEGOCIO } from './negocio.js'
 import { aDolares, aPesos } from './servicios/precios.js'
+import { precioEnEfectivo } from './servicios/efectivo.js'
 
 // Se vuelven a exportar para que las pantallas las tomen de un solo lugar.
 export { aDolares, aPesos }
@@ -38,29 +39,37 @@ export function enlaceWhatsApp(renglones) {
   return `https://wa.me/${NEGOCIO.whatsapp}?text=${encodeURIComponent(mensaje)}`
 }
 
-// Mensaje que identifica el equipo exacto.
-export function enlaceCelular(lote, cotizacion) {
+// Mensaje que identifica el equipo exacto. descuento: el % pagando en
+// efectivo (0 = sin descuento, va un solo precio).
+export function enlaceCelular(lote, cotizacion, descuento = 0) {
+  const precio = aPesos(lote.precio_usd, cotizacion)
+  const efectivo = precioEnEfectivo(precio, descuento)
   return enlaceWhatsApp([
     'Hola! Quiero consultar por este equipo:',
     `*${lote.modelo}${lote.capacidad ? ` ${lote.capacidad}` : ''}*`,
     lote.color && `Color: ${lote.color}`,
     lote.bateria && `Batería: ${lote.bateria}`,
     lote.detalles && `Detalles: ${lote.detalles}`,
-    `Precio: ${pesos(aPesos(lote.precio_usd, cotizacion))}`,
+    efectivo === null ? `Precio: ${pesos(precio)}` : `Precio con tarjeta: ${pesos(precio)}`,
+    efectivo !== null && `En efectivo: ${pesos(efectivo)}`,
   ])
 }
 
-// Mensaje de un accesorio con cantidad, precio por unidad y total.
-export function enlaceAccesorio(lote, cantidad, cotizacion) {
+// Mensaje de un accesorio con cantidad, precio por unidad y total. El
+// descuento en efectivo se aplica sobre el precio que corresponda a la
+// cantidad (el de lista o el de su tramo).
+export function enlaceAccesorio(lote, cantidad, cotizacion, descuento = 0) {
   const porUnidad = precioSegunCantidad(lote, cantidad, cotizacion)
+  const efectivo = precioEnEfectivo(porUnidad, descuento)
   return enlaceWhatsApp([
     'Hola! Quiero consultar por este accesorio:',
     `*${[lote.tipo, lote.modelo].filter(Boolean).join(' ')}*`,
     lote.color && `Color: ${lote.color}`,
     lote.detalles && `Detalles: ${lote.detalles}`,
     `Cantidad: ${cantidad}`,
-    `Precio por unidad: ${pesos(porUnidad)}`,
-    cantidad > 1 && `Total: ${pesos(porUnidad * cantidad)}`,
+    `Precio por unidad${efectivo === null ? '' : ' con tarjeta'}: ${pesos(porUnidad)}`,
+    efectivo !== null && `En efectivo: ${pesos(efectivo)} c/u`,
+    cantidad > 1 && `Total: ${pesos(porUnidad * cantidad)}${efectivo === null ? '' : ` (en efectivo ${pesos(efectivo * cantidad)})`}`,
   ])
 }
 

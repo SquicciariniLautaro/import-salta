@@ -3,6 +3,8 @@
 
 import { useState } from 'react'
 import { aPesos, pesos } from '../formato.js'
+import { descuentoPara, descuentosDe, precioEnEfectivo } from '../servicios/efectivo.js'
+import { usePanel } from './contexto.js'
 
 // Desplegable con una ultima opcion "Otro (escribir)". Se usa en lugar de
 // <datalist>, que en los celulares no muestra ni la flecha ni la lista.
@@ -108,16 +110,24 @@ export function Cantidad({ valor, alCambiar, minimo = 1, maximo }) {
   )
 }
 
-// Dos botones para usar el precio publicado (minorista) o el mayorista del
-// lote. Despues el precio se puede seguir cambiando a mano.
-// minorista y mayorista en pesos; mayorista null = el lote no tiene.
-export function ElegirPrecio({ minorista, mayorista, valor, alElegir }) {
+// Botones para usar el precio publicado (minorista, el precio con tarjeta),
+// el mayorista del lote o, si en Ajustes hay descuento en efectivo para esa
+// tabla, el precio en efectivo. Despues el precio se puede seguir cambiando a
+// mano. minorista y mayorista en pesos; mayorista null = el lote no tiene,
+// undefined = no se ofrece. tabla: 'celulares' o 'accesorios'.
+export function ElegirPrecio({ minorista, mayorista, tabla, valor, alElegir }) {
+  const { configuracion } = usePanel()
+  const descuento = descuentoPara(tabla, descuentosDe(configuracion))
+  const efectivo = precioEnEfectivo(minorista, descuento)
   const opciones = [
     { nombre: 'Publicado', precio: minorista },
-    { nombre: 'Mayorista', precio: mayorista },
-  ]
+    mayorista !== undefined && { nombre: 'Mayorista', precio: mayorista },
+    efectivo !== null && { nombre: 'Efectivo', precio: efectivo, ayuda: `Precio con tarjeta menos el ${descuento} %` },
+  ].filter(Boolean)
+  // Con un solo boton no hay nada que elegir.
+  if (opciones.length < 2) return null
   return (
-    <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+    <div className={`mt-1.5 grid gap-1.5 ${opciones.length === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
       {opciones.map((opcion) => (
         <button
           key={opcion.nombre}
@@ -125,6 +135,7 @@ export function ElegirPrecio({ minorista, mayorista, valor, alElegir }) {
           className={`boton boton-chico min-w-0 flex-col gap-0 py-1 ${opcion.precio !== null && valor === opcion.precio ? 'boton-oscuro' : 'boton-claro'}`}
           disabled={opcion.precio === null}
           onClick={() => alElegir(opcion.precio)}
+          title={opcion.ayuda}
         >
           <span>{opcion.nombre}</span>
           <span className="truncate text-[11px] font-normal">{opcion.precio === null ? 'Sin cargar' : pesos(opcion.precio)}</span>

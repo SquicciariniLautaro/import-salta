@@ -3,6 +3,8 @@
 //   * Los datos del comercio que salen impresos en cada ticket, la letra chica
 //     de la garantia y si se imprime un duplicado para el local.
 //   * Los dias de garantia que se proponen al vender o entregar un arreglo.
+//   * El descuento pagando en efectivo (uno para celulares y otro para
+//     accesorios): el catalogo muestra el precio con tarjeta y en efectivo.
 //   * Los planes de cuotas con tarjeta (cuantas cuotas y con que recargo),
 //     que se muestran en el catalogo y se eligen al cobrar.
 //   * La revision del acta de entrega y garantia: que puntos se revisan con
@@ -19,6 +21,7 @@ import toast from 'react-hot-toast'
 import { agregarOpcion, guardarAjustes, quitarOpcion } from '../apiAdmin.js'
 import { armarComprobante, paginaDeTicket } from '../servicios/comprobante.js'
 import { cuotasDe, ordenarPlanes, problemaDePlanes, textoDeRecargo } from '../servicios/cuotas.js'
+import { DESCUENTO_MAXIMO, descuentosDe, precioEnEfectivo, problemaDeDescuento } from '../servicios/efectivo.js'
 import { pesos } from '../formato.js'
 import { ticketDeVenta } from '../servicios/escpos.js'
 import { etiquetasParaTicketera, logoDeTicket } from './ticketera.js'
@@ -36,6 +39,14 @@ const TEXTOS = [
 const CUOTAS_COMUNES = [3, 6, 9, 12, 18, 24]
 // El precio con el que se muestra el ejemplo de cada plan.
 const PRECIO_DE_EJEMPLO = 1000000
+
+// Atajos para el descuento pagando en efectivo.
+const DESCUENTOS_COMUNES = [0, 10, 20, 30]
+// Los descuentos como texto, para los campos y para comparar con lo guardado.
+const descuentosEnTexto = (configuracion) => {
+  const { celulares, accesorios } = descuentosDe(configuracion)
+  return { celulares: String(celulares), accesorios: String(accesorios) }
+}
 
 // Los planes como los trae la base, para comparar con lo que se esta editando.
 const planesDe = (configuracion) => (configuracion.cuotas_planes || []).map((plan) => ({ cuotas: plan.cuotas, recargo: Number(plan.recargo) }))
@@ -88,6 +99,9 @@ export default function PestanaAjustes() {
   // Los planes se editan como numeros; un campo vacio queda en null hasta que se escribe.
   const [planes, setPlanes] = useState(() => planesDe(configuracion))
   const [cuotasAccesorios, setCuotasAccesorios] = useState(Boolean(configuracion.cuotas_accesorios))
+  // Los descuentos en efectivo, como texto mientras se escriben. Sin la
+  // migracion del descuento la base no los trae: arrancan en 0.
+  const [descuentos, setDescuentos] = useState(() => descuentosEnTexto(configuracion))
   const [puntos, setPuntos] = useState(configuracion.revision_puntos || [])
   const [prueba, setPrueba] = useState(null) // 'ticket' | 'etiqueta'
   const [ocupado, ejecutar] = useAccion()
@@ -101,11 +115,13 @@ export default function PestanaAjustes() {
     duplicado !== (configuracion.ticket_duplicado ?? true) ||
     JSON.stringify(ordenarPlanes(planes)) !== JSON.stringify(planesDe(configuracion)) ||
     cuotasAccesorios !== Boolean(configuracion.cuotas_accesorios) ||
+    JSON.stringify(descuentos) !== JSON.stringify(descuentosEnTexto(configuracion)) ||
     JSON.stringify(puntos) !== JSON.stringify(configuracion.revision_puntos || [])
   const problemaCuotas = problemaDePlanes(planes)
+  const problemaEfectivo = problemaDeDescuento(descuentos.celulares) || problemaDeDescuento(descuentos.accesorios)
   const falta =
     !campos.negocio_nombre.trim() || NUMEROS.some((nombre) => campos[nombre] === '' || Number(campos[nombre]) < 0) ||
-    Boolean(problemaCuotas) || puntos.length === 0 || !campos.acta_condiciones.trim()
+    Boolean(problemaCuotas) || Boolean(problemaEfectivo) || puntos.length === 0 || !campos.acta_condiciones.trim()
 
   // Lo que hay escrito ahora, con los numeros como numeros: sirve para guardar
   // y para probar la impresion antes de guardar.
@@ -115,6 +131,8 @@ export default function PestanaAjustes() {
     ticket_duplicado: duplicado,
     cuotas_planes: ordenarPlanes(planes),
     cuotas_accesorios: cuotasAccesorios,
+    descuento_efectivo_celulares: Number(descuentos.celulares),
+    descuento_efectivo_accesorios: Number(descuentos.accesorios),
     revision_puntos: puntos,
   }
 
@@ -206,6 +224,8 @@ export default function PestanaAjustes() {
           </div>
         </section>
   
+        <SeccionEfectivo descuentos={descuentos} alCambiar={setDescuentos} problema={problemaEfectivo} />
+
         <SeccionCuotas
           planes={planes}
           alCambiar={setPlanes}
@@ -385,6 +405,63 @@ function ImpresoraQueNoPara() {
   )
 }
 
+// El descuento pagando en efectivo: un porcentaje para los celulares y otro
+// para los accesorios (y los combos), con atajos y un ejemplo. El precio
+// cargado en el stock es el precio con tarjeta. Se guardan con el boton de abajo.
+function SeccionEfectivo({ descuentos, alCambiar, problema }) {
+  const renglon = (tabla, nombre) => {
+    const valor = descuentos[tabla]
+    const ejemplo = problemaDeDescuento(valor) ? null : precioEnEfectivo(PRECIO_DE_EJEMPLO, Number(valor))
+    return (
+      <div className="space-y-1.5 rounded-lg border border-neutral-200 p-2.5">
+        <p className="etiqueta">{nombre}: descuento en efectivo (%)</p>
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            inputMode="numeric"
+            min="0"
+            max={DESCUENTO_MAXIMO}
+            step="1"
+            className="campo w-20 shrink-0"
+            value={valor}
+            onChange={(evento) => alCambiar({ ...descuentos, [tabla]: evento.target.value })}
+            aria-label={`${nombre}: descuento en efectivo (%)`}
+          />
+          <div className="grid flex-1 grid-cols-4 gap-1">
+            {DESCUENTOS_COMUNES.map((porcentaje) => (
+              <button
+                key={porcentaje}
+                type="button"
+                className={`boton boton-chico min-w-0 px-1 ${valor === String(porcentaje) ? 'boton-oscuro' : 'boton-claro'}`}
+                onClick={() => alCambiar({ ...descuentos, [tabla]: String(porcentaje) })}
+              >
+                {porcentaje === 0 ? 'Sin' : `${porcentaje} %`}
+              </button>
+            ))}
+          </div>
+        </div>
+        <p className="text-[11px] text-neutral-500">
+          {ejemplo === null
+            ? 'Sin descuento: el catálogo muestra un solo precio.'
+            : `Uno de ${pesos(PRECIO_DE_EJEMPLO)} con tarjeta queda en ${pesos(ejemplo)} en efectivo.`}
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <section className="tarjeta space-y-3 p-3">
+      <Titulo
+        texto="Precio en efectivo"
+        ayuda="El precio cargado en el stock es el precio con tarjeta. Con un descuento, el catálogo muestra los dos precios, y al vender aparece el botón «Efectivo» para usarlo. 0 = sin descuento."
+      />
+      {renglon('celulares', 'Celulares')}
+      {renglon('accesorios', 'Accesorios y combos')}
+      {problema && <p className="text-xs text-red-700">{problema}</p>}
+    </section>
+  )
+}
+
 // Los planes de cuotas: un renglon por plan con sus cuotas y su recargo, y un
 // ejemplo de cuanto queda cada cuota. Se guardan con el boton de abajo.
 function SeccionCuotas({ planes, alCambiar, leyenda, alCambiarLeyenda, accesorios, alCambiarAccesorios, problema }) {
@@ -396,7 +473,7 @@ function SeccionCuotas({ planes, alCambiar, leyenda, alCambiarLeyenda, accesorio
     <section className="tarjeta space-y-3 p-3">
       <Titulo
         texto="Cuotas con tarjeta"
-        ayuda="Se muestran en el catálogo, en cada equipo, y se eligen al cobrar con tarjeta en el posnet. El recargo se suma al precio de lista: 0 % es sin interés."
+        ayuda="Se muestran en el catálogo, en cada equipo, y se eligen al cobrar con tarjeta o QR. El recargo se suma al precio con tarjeta: 0 % es sin interés."
       />
       {planes.length === 0 && <p className="rounded-lg bg-neutral-100 px-3 py-2 text-xs text-neutral-600">Sin planes: el catálogo no muestra cuotas.</p>}
       <ul className="space-y-2">
@@ -465,7 +542,7 @@ function SeccionCuotas({ planes, alCambiar, leyenda, alCambiarLeyenda, accesorio
       {problema && <p className="text-xs text-red-700">{problema}</p>}
       <label className="etiqueta">
         Texto que acompaña las cuotas en el catálogo
-        <input className="campo" value={leyenda} onChange={alCambiarLeyenda} maxLength={200} placeholder="Con tarjeta de crédito bancaria, en el local" />
+        <input className="campo" value={leyenda} onChange={alCambiarLeyenda} maxLength={200} placeholder="Con tarjeta de crédito bancaria" />
       </label>
       <label className="flex items-start gap-2 text-sm">
         <input type="checkbox" className="mt-0.5 h-4 w-4 accent-black" checked={accesorios} onChange={(evento) => alCambiarAccesorios(evento.target.checked)} />

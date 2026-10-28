@@ -77,5 +77,12 @@ export function armarCatalogo(crudo) {
     accesorios: Boolean(crudo.cuotas?.accesorios),
   }
 
-  return { cotizacion, cuotas, celulares, accesorios: ordenarLotes([...accesorios, ...combos]) }
+  // El descuento pagando en efectivo, en % (0 = sin descuento). Sin la
+  // migracion del descuento la base no lo trae: queda en 0.
+  const efectivo = {
+    celulares: Number(crudo.efectivo?.celulares) || 0,
+    accesorios: Number(crudo.efectivo?.accesorios) || 0,
+  }
+
+  return { cotizacion, cuotas, efectivo, celulares, accesorios: ordenarLotes([...accesorios, ...combos]) }
 }

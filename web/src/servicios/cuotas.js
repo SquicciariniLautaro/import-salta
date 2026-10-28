@@ -1,5 +1,5 @@
 // servicios/cuotas.js
-// Cuanto queda cada cuota cuando se paga con tarjeta en el posnet del local.
+// Cuanto queda cada cuota cuando se paga con tarjeta (en el posnet o con QR).
 // Funciones puras.
 //
 // Un plan es { cuotas, recargo }: "recargo" es el porcentaje que se le suma

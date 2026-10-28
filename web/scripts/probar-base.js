@@ -136,6 +136,8 @@ await probar('catalogo_publico solo trae campos publicos y unidades disponibles'
     'cuotas', 'planes', 'recargo', 'leyenda',
     // La foto de cada lote (direccion de Cloudinary, publica).
     'imagen',
+    // El descuento pagando en efectivo: { efectivo: { celulares, accesorios } }.
+    'efectivo',
   ])
   assert.deepEqual([...campos].filter((campo) => !permitidos.has(campo)), [])
   const texto = JSON.stringify(catalogo)
@@ -1400,6 +1402,31 @@ await probar('la lista de la revision se edita en Ajustes, sin repetidos ni vaci
 })
 
 // ===========================================================================
+console.log('\nImport Salta: precio con tarjeta y en efectivo')
+
+await probar('el descuento en efectivo se guarda en Ajustes y sale en el catalogo publico', async () => {
+  // Los datos de prueba traen 10 % y 20 % (ver datos_prueba.sql).
+  assert.deepEqual((await rpc('catalogo_publico')).efectivo, { celulares: 10, accesorios: 20 })
+  await admin('guardar_ajustes', { p_datos: { descuento_efectivo_celulares: 10, descuento_efectivo_accesorios: '30' } })
+  const configuracion = (await admin('panel_datos')).configuracion
+  assert.deepEqual([configuracion.descuento_efectivo_celulares, configuracion.descuento_efectivo_accesorios], [10, 30])
+  assert.deepEqual((await rpc('catalogo_publico')).efectivo, { celulares: 10, accesorios: 30 })
+  assert.deepEqual(armarCatalogo(await rpc('catalogo_publico')).efectivo, { celulares: 10, accesorios: 30 })
+  // Lo que no se manda queda como estaba.
+  await admin('guardar_ajustes', { p_datos: { ticket_pie: 'Gracias' } })
+  assert.equal((await admin('panel_datos')).configuracion.descuento_efectivo_celulares, 10)
+  // Fuera de 0 a 90, con decimales o sin numero: no se guarda nada.
+  for (const malo of [-1, 91, 12.5, 'diez']) {
+    await rechaza(admin('guardar_ajustes', { p_datos: { descuento_efectivo_celulares: malo } }), /0 % a 90 %/)
+  }
+  assert.equal((await admin('panel_datos')).configuracion.descuento_efectivo_celulares, 10)
+  // Sin ser administrador no se puede cambiar.
+  await rechaza(rpc('guardar_ajustes', { p_datos: { descuento_efectivo_celulares: 50 } }), /permission denied/)
+  await rechaza(como('authenticated', AJENO, `select public.guardar_ajustes('{"descuento_efectivo_celulares": 50}')`), /No autorizado/)
+  assert.equal((await admin('panel_datos')).configuracion.descuento_efectivo_celulares, 10)
+})
+
+// ===========================================================================
 console.log('\nstock inicial del cliente (supabase/stock_inicial.sql)')
 await probar('se carga sobre una base vacia y no sale en el catalogo hasta tener precio', async () => {
   const limpia = await crearBaseLocal({
@@ -1412,6 +1439,9 @@ await probar('se carga sobre una base vacia y no sale en el catalogo hasta tener
   assert.equal(await contar('accesorios'), 340)
   let publico = await limpia.rpc('catalogo_publico')
   assert.deepEqual([publico.celulares.length, publico.accesorios.length], [0, 0])
+  // En una base nueva el texto de las cuotas ya no dice "en el local", y no hay descuento en efectivo.
+  assert.equal(publico.cuotas.leyenda, 'Con tarjeta de crédito bancaria.')
+  assert.deepEqual(publico.efectivo, { celulares: 0, accesorios: 0 })
   // Con precio, el equipo aparece.
   await limpia.base.query(`update public.celulares set precio_usd = 900 where modelo = 'IPHONE 17 PRO'`)
   publico = await limpia.rpc('catalogo_publico')
@@ -1521,6 +1551,7 @@ await probar('segunda pasada', async () => {
   assert.equal((await admin('panel_datos')).configuracion.cotizacion_dolar, 1450)
   // Lo cargado sigue ahi, y las funciones viejas no quedaron duplicadas.
   assert.equal((await admin('panel_datos')).configuracion.garantia_dias_celulares, 90)
+  assert.equal((await admin('panel_datos')).configuracion.descuento_efectivo_accesorios, 30)
   const [libre] = await idsDe('celulares', 'IPHONE 13')
   const venta = await admin('vender', { p_celulares: [{ id: libre, precio_usd: 400 }], p_accesorios: [] })
   assert.equal(venta.unidades, 1)
