@@ -11,7 +11,7 @@ import toast from 'react-hot-toast'
 import Modal, { Confirmar } from '../componentes/Modal.jsx'
 import CampoPesos from '../componentes/CampoPesos.jsx'
 import { anularVenta, editarComprobante, editarVenta, leerVentas } from '../apiAdmin.js'
-import { aDolares, aPesos, dolares, extraerImei, fechaCorta, nombreDeMes, normalizar, pesos } from '../formato.js'
+import { aDolares, aPesos, dolares, extraerImei, fechaCorta, fechaDeCompra, nombreDeMes, normalizar, pesos } from '../formato.js'
 import { cobroParaLaBase, nombreDeMedio, numeroDeTicket } from '../servicios/comprobante.js'
 import { aCsv, armarVentas, mesDe, totalizar } from '../servicios/ventas.js'
 import { CamposDeCliente, CamposDeCobro } from './Cobro.jsx'
@@ -199,7 +199,8 @@ export default function PestanaVentas() {
                     {renglon.descripcion}
                   </p>
                   <p className="text-[11px] break-words text-neutral-500">
-                    {fechaCorta(renglon.fecha)}
+                    {renglon.clase === 'venta' ? `Vendido el ${fechaCorta(renglon.fecha)}` : fechaCorta(renglon.fecha)}
+                    {renglon.clase === 'venta' && fechaDeCompra(renglon.unidades) && ` · comprado ${fechaDeCompra(renglon.unidades)}`}
                     {renglon.detalle && ` · ${renglon.detalle}`}
                     {renglon.clase === 'venta' && renglon.comprador && ` · ${renglon.comprador}`}
                     {renglon.medio && ` · ${nombreDeMedio(renglon.medio)}`}
@@ -298,6 +299,7 @@ function ModalVentaHecha({ renglon, comprobante, alCerrar }) {
       <p className="text-xs text-neutral-500">
         Vendido el {fechaCorta(renglon.fecha)} · dólar del día {pesos(renglon.cotizacion_venta)}
       </p>
+      {fechaDeCompra(renglon.unidades) && <p className="text-xs text-neutral-500">Comprado {fechaDeCompra(renglon.unidades)}</p>}
       {comprobante?.debe_ars > 0 && (
         <p className="mt-1 text-xs text-red-700">
           Quedó debiendo {pesos(comprobante.debe_ars)}, en la cuenta de {comprobante.cliente}. Si anulás toda la venta, esa deuda se borra.

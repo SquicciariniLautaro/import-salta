@@ -47,6 +47,7 @@ traen lo que pidió Import Salta.
 | 9 | `20261021000000_cuotas_y_actas.sql` | **Import Salta**: planes de cuotas con su recargo (salen en el catálogo), cobro con tarjeta en el posnet y actas de entrega y garantía con revisión y firmas. |
 | 10 | `20261026000000_imagenes.sql` | **Import Salta**: una foto por producto (celulares y accesorios) que sale en el catálogo. Las fotos se guardan en Cloudinary (ver *Fotos de los productos*). |
 | 11 | `20261028000000_descuento_efectivo.sql` | **Import Salta**: descuento pagando en efectivo (el catálogo muestra el precio con tarjeta y en efectivo) y el texto de las cuotas sin "en el local con posnet". |
+| 12 | `20261029000000_fecha_de_compra.sql` | **Import Salta**: el historial de ventas trae la fecha de compra de cada unidad vendida. |
 
 Para cada una:
 
@@ -191,6 +192,21 @@ en el sitio publicado.
   (también en los combos y en el carrito). En la venta queda el precio que se elija.
 - Las cuotas se calculan sobre el precio con tarjeta.
 
+## Fecha de compra y fecha de venta
+
+Cada celular y accesorio guarda solo el día en que entró al stock (la fecha de compra) y
+el día en que se vendió. Se ven en:
+
+- `Celulares` / `Accesorios` → abrir el modelo: *Comprado: el 22/10/26*. Si las unidades
+  entraron en días distintos, cada día con cuántas (*20/10/26 (2 u.) · 27/10/26 (4 u.)*).
+  Al vender, cada equipo con IMEI dice cuándo se compró.
+- `Ventas`: cada venta dice *Vendido el ...* y *comprado el ...*, también al abrirla. El
+  archivo que se descarga desde Ventas trae las dos columnas.
+- El buscador de IMEI dice *Ingresó el ...* y *Vendido el ...* de cada equipo.
+
+El stock que se cargó con `stock_inicial.sql` figura comprado el día que se cargó
+(2026-10-22), no el día real en que lo compró el cliente.
+
 ## Cuotas y cobro con tarjeta
 
 - Se cobra con el posnet del local (Payway) o mandándole un QR al cliente. El sistema
@@ -331,6 +347,7 @@ emite facturas electrónicas de ARCA.
 | "Cloudinary no aceptó la foto: Invalid Signature" | `CLOUDINARY_URL` está mal copiada (o se regeneró la clave en Cloudinary): copiarla de nuevo y `Redeploy`. |
 | "La subida de fotos funciona en el sitio publicado..." | Se está usando `npm run dev`: la función que firma solo corre en Vercel. Probar en el sitio publicado o con `npm run dev:prueba`. |
 | "Algo falló" al guardar una foto | Falta aplicar la migración 10: volver al paso 2. |
+| En `Ventas` no aparece "comprado el" | Falta aplicar la migración 12: volver al paso 2. |
 | El catálogo no muestra el precio en efectivo | En `Ajustes` → *Precio en efectivo* el descuento está en 0, o falta la migración 11. Sin la migración 11, el descuento que se guarda en Ajustes vuelve a 0. |
 | *Usar el dólar blue de hoy* no trae nada | DolarApi no respondió: escribir la cotización a mano y `Guardar`. |
 | El ticket sale cortado, muy chico o con una hoja en blanco | En `Ajustes` → *Impresora*, corregir el ancho del rollo; en la ventana de impresión, márgenes en "Ninguno". |

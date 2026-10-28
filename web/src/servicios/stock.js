@@ -6,6 +6,22 @@
 import { normalizar } from './texto.js'
 import { promediar, sumar } from './lotes.js'
 import { familiaDeCelular, marcaDe, ordenarLotes } from './orden.js'
+import { diaDe } from './caja.js'
+
+// Cuantas unidades se compraron (entraron al stock) cada dia, del dia mas
+// viejo al mas nuevo: [{ dia: 'AAAA-MM-DD', fecha, cantidad }]. "fecha" es la
+// de la primera unidad de ese dia, para mostrarla. Sin fecha no cuentan.
+export function comprasPorDia(unidades) {
+  const porDia = new Map()
+  for (const unidad of unidades) {
+    if (!unidad.fecha_ingreso) continue
+    const dia = diaDe(unidad.fecha_ingreso)
+    const grupo = porDia.get(dia)
+    if (grupo) grupo.cantidad += 1
+    else porDia.set(dia, { dia, fecha: unidad.fecha_ingreso, cantidad: 1 })
+  }
+  return [...porDia.values()].sort((a, b) => a.dia.localeCompare(b.dia))
+}
 
 // tabla: 'celulares' o 'accesorios'.
 // Cada lote separa sus unidades segun donde estan:

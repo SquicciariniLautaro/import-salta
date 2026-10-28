@@ -7,7 +7,7 @@
 
 import { useState } from 'react'
 import toast from 'react-hot-toast'
-import { extraerImei } from '../formato.js'
+import { extraerImei, soloFecha } from '../formato.js'
 import { Cantidad } from './Campos.jsx'
 import { avisarNoEsImei, usePistola } from './pistola.js'
 
@@ -78,6 +78,7 @@ export function SelectorUnidades({ unidades, elegidas, alCambiar }) {
                 onChange={() => alternar(unidad.id)}
               />
               <span className={unidad.imei ? 'font-mono' : 'text-neutral-500'}>{unidad.imei || 'Sin IMEI'}</span>
+              {unidad.fecha_ingreso && <span className="ml-auto text-[11px] text-neutral-500">comprado el {soloFecha(unidad.fecha_ingreso)}</span>}
             </label>
           </li>
         ))}
