@@ -1449,6 +1449,119 @@ await probar('el historial de ventas trae la fecha de compra de cada unidad vend
 })
 
 // ===========================================================================
+console.log('\nImport Salta: fecha de ingreso y de venta elegidas a mano')
+
+// Hace "dias" dias, al mediodia de Argentina.
+const haceDias = (dias) => new Date(Date.now() - dias * 24 * 3600 * 1000).toISOString().slice(0, 10) + 'T15:00:00.000Z'
+const mismoMomento = (a, b) => assert.equal(new Date(a).getTime(), new Date(b).getTime())
+
+await probar('al ingresar celulares y accesorios se puede elegir la fecha de compra', async () => {
+  const fecha = haceDias(20)
+  await admin('ingresar_celulares', {
+    p_modelo: 'iphone fecha', p_capacidad: '128GB', p_color: 'AZUL', p_bateria: '90%', p_detalles: '',
+    p_costo_usd: 400, p_precio_usd: 500, p_cantidad: 2, p_fecha: fecha,
+  })
+  const ids = await idsDe('celulares', 'IPHONE FECHA')
+  assert.equal(ids.length, 2)
+  for (const id of ids) mismoMomento((await unidad('celulares', id)).fecha_ingreso, fecha)
+
+  await admin('ingresar_accesorios', {
+    p_tipo: 'funda', p_modelo: 'fecha a mano', p_color: '', p_detalles: '', p_costo_usd: 1, p_precio_usd: 3, p_cantidad: 1, p_fecha: fecha,
+  })
+  const [accesorio] = await idsDe('accesorios', 'FECHA A MANO')
+  mismoMomento((await unidad('accesorios', accesorio)).fecha_ingreso, fecha)
+
+  // Sin fecha, como siempre: el momento de la carga.
+  await admin('ingresar_accesorios', {
+    p_tipo: 'funda', p_modelo: 'fecha de hoy', p_color: '', p_detalles: '', p_costo_usd: 1, p_precio_usd: 3, p_cantidad: 1,
+  })
+  const [deHoy] = await idsDe('accesorios', 'FECHA DE HOY')
+  assert.ok(Date.now() - new Date((await unidad('accesorios', deHoy)).fecha_ingreso) < 60 * 1000)
+
+  // No se aceptan fechas futuras.
+  await rechaza(admin('ingresar_accesorios', {
+    p_tipo: 'funda', p_modelo: 'futuro', p_color: '', p_detalles: '', p_costo_usd: 1, p_precio_usd: 3, p_cantidad: 1,
+    p_fecha: new Date(Date.now() + 3 * 24 * 3600 * 1000).toISOString(),
+  }), /futura/)
+})
+
+await probar('un lote de proveedor guarda su fecha de compra en el lote, los equipos y la deuda', async () => {
+  const fecha = haceDias(15)
+  const { compra: id } = await admin('ingresar_compra', {
+    p_proveedor: 'proveedor con fecha', p_nota: '', p_deuda_usd: 100, p_fecha: fecha,
+    p_celulares: [{ modelo: 'iphone lote fecha', capacidad: '', color: '', bateria: '', detalles: '', costo_usd: 100, precio_usd: 150, cantidad: 2 }],
+  })
+  mismoMomento((await sql(`select fecha from public.compras where id = $1`, [id]))[0].fecha, fecha)
+  const equipos = await sql(`select fecha_ingreso from public.celulares where compra_id = $1`, [id])
+  assert.equal(equipos.length, 2)
+  for (const equipo of equipos) mismoMomento(equipo.fecha_ingreso, fecha)
+  mismoMomento((await sql(`select fecha from public.deudas_proveedor where compra_id = $1`, [id]))[0].fecha, fecha)
+})
+
+await probar('al vender se puede elegir la fecha: queda en las unidades, el comprobante, la deuda y la caja', async () => {
+  const [id] = await idsDe('celulares', 'IPHONE FECHA')
+  const fecha = haceDias(5)
+  const { comprobante } = await admin('vender', {
+    p_celulares: [{ id, precio_usd: 500 }], p_accesorios: [],
+    p_datos: { cliente: 'cliente con fecha', medio: 'efectivo', debe_ars: 1000, fecha },
+  })
+  mismoMomento((await unidad('celulares', id)).fecha_venta, fecha)
+  mismoMomento((await sql(`select fecha from public.comprobantes where id = $1`, [comprobante]))[0].fecha, fecha)
+  mismoMomento((await sql(`select fecha from public.cuenta_clientes where comprobante_id = $1`, [comprobante]))[0].fecha, fecha)
+  const enCaja = (await admin('caja_datos')).find((fila) => fila.origen === 'venta' && Number(fila.id) === comprobante)
+  mismoMomento(enCaja.fecha, fecha)
+  // Y en el historial de ventas.
+  const vendida = (await admin('ventas_datos')).celulares.find((otra) => Number(otra.id) === id)
+  mismoMomento(vendida.fecha_venta, fecha)
+})
+
+await probar('no se puede vender con fecha anterior a la de compra', async () => {
+  const [id] = await idsDe('celulares', 'IPHONE FECHA')
+  await rechaza(admin('vender', {
+    p_celulares: [{ id, precio_usd: 500 }], p_accesorios: [], p_datos: { medio: 'efectivo', fecha: haceDias(30) },
+  }), /anterior a la de compra/)
+  // No quedo nada a medias.
+  assert.equal((await unidad('celulares', id)).estado, 'disponible')
+})
+
+await probar('la permuta usa la fecha para la venta y para el ingreso del equipo recibido', async () => {
+  const [entregado] = await idsDe('celulares', 'IPHONE FECHA')
+  const fecha = haceDias(3)
+  await admin('registrar_permuta', {
+    p_recibido: { modelo: 'iphone permuta fecha', capacidad: '', color: '', bateria: '', detalles: '', imei: '', valor_usd: 100, precio_usd: 150 },
+    p_entregado_id: entregado, p_entregado_precio_usd: 500, p_datos: { medio: 'efectivo', fecha },
+  })
+  mismoMomento((await unidad('celulares', entregado)).fecha_venta, fecha)
+  const [recibido] = await idsDe('celulares', 'IPHONE PERMUTA FECHA')
+  mismoMomento((await unidad('celulares', recibido)).fecha_ingreso, fecha)
+})
+
+await probar('se corrigen la fecha de compra y la de venta ya cargadas', async () => {
+  const [accesorio] = await idsDe('accesorios', 'FECHA DE HOY')
+  const compra = haceDias(40)
+  assert.equal(await admin('cambiar_fecha_compra', { p_tabla: 'accesorios', p_ids: [accesorio], p_fecha: compra }), 1)
+  mismoMomento((await unidad('accesorios', accesorio)).fecha_ingreso, compra)
+
+  const [otro] = await idsDe('accesorios', 'FECHA A MANO')
+  const { comprobante } = await admin('vender', {
+    p_celulares: [], p_accesorios: [{ id: accesorio, precio_usd: 3 }, { id: otro, precio_usd: 3 }], p_datos: { medio: 'efectivo' },
+  })
+  // La fecha de venta cambia todo el ticket aunque se corrija desde una unidad.
+  const venta = haceDias(10)
+  await admin('cambiar_fecha_venta', { p_tabla: 'accesorios', p_ids: [accesorio], p_fecha: venta })
+  mismoMomento((await unidad('accesorios', otro)).fecha_venta, venta)
+  mismoMomento((await sql(`select fecha from public.comprobantes where id = $1`, [comprobante]))[0].fecha, venta)
+
+  // Ni la venta antes de la compra, ni la compra despues de la venta.
+  await rechaza(admin('cambiar_fecha_venta', { p_tabla: 'accesorios', p_ids: [accesorio], p_fecha: haceDias(50) }), /anterior a la de compra/)
+  await rechaza(admin('cambiar_fecha_compra', { p_tabla: 'accesorios', p_ids: [accesorio], p_fecha: haceDias(2) }), /posterior a la de venta/)
+  mismoMomento((await unidad('accesorios', accesorio)).fecha_venta, venta)
+  // Solo un administrador.
+  await rechaza(rpc('cambiar_fecha_venta', { p_tabla: 'accesorios', p_ids: [accesorio], p_fecha: venta }), /permission denied/)
+  await rechaza(rpc('cambiar_fecha_compra', { p_tabla: 'accesorios', p_ids: [accesorio], p_fecha: venta }), /permission denied/)
+})
+
+// ===========================================================================
 console.log('\nstock inicial del cliente (supabase/stock_inicial.sql)')
 await probar('se carga sobre una base vacia y no sale en el catalogo hasta tener precio', async () => {
   const limpia = await crearBaseLocal({

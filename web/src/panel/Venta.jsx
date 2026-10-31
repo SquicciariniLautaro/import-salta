@@ -15,7 +15,9 @@ import { COBRO_VACIO, DEUDA_VACIA, cobroIncompleto, cobroParaLaBase, montoDeDeud
 import { venderCombo } from '../servicios/combos.js'
 import { precioPorCantidad } from '../servicios/precios.js'
 import { describir } from '../servicios/texto.js'
-import { Cantidad, ElegirPrecio } from './Campos.jsx'
+import { diaDe } from '../servicios/caja.js'
+import { diaDeLaCompraMasNueva, fechaParaLaBase, problemaDeDia } from '../servicios/fechas.js'
+import { CampoFecha, Cantidad, ElegirPrecio } from './Campos.jsx'
 import { CampoDeuda, CampoGarantia, CampoVendedor, CamposDeCliente, CamposDeCobro } from './Cobro.jsx'
 import { useVendedor } from './useVendedor.js'
 import { IconoImpresora, VentanaTicket } from './Impresion.jsx'
@@ -69,6 +71,9 @@ export function ModalVenta({ lote, unidadInicial, alCerrar }) {
   const [deuda, setDeuda] = useState(DEUDA_VACIA)
   // Arranca en los dias cargados en Ajustes para este tipo de producto.
   const [garantia, setGarantia] = useState(esCelular ? configuracion.garantia_dias_celulares : configuracion.garantia_dias_accesorios)
+  // Fecha de la venta: arranca en hoy.
+  const [hoy] = useState(() => diaDe(new Date()))
+  const [dia, setDia] = useState(hoy)
   // Cuando la venta se registro: el numero de comprobante.
   const [hecha, setHecha] = useState(null)
   const [ocupado, ejecutar] = useAccion()
@@ -95,11 +100,17 @@ export function ModalVenta({ lote, unidadInicial, alCerrar }) {
   }
 
   const extrasValidos = extras.filter((extra) => loteDe(extra.clave))
+  // No se puede vender antes del dia en que entro al stock la unidad mas nueva.
+  const compraMasNueva = diaDeLaCompraMasNueva([
+    ...lote.disponibles.filter((unidad) => elegidas.includes(unidad.id)),
+    ...extrasValidos.flatMap((extra) => loteDe(extra.clave).disponibles.slice(0, extra.cantidad)),
+  ])
   const total = (precio ?? 0) * elegidas.length + extrasValidos.reduce((suma, extra) => suma + precioDeExtra(extra) * extra.cantidad, 0)
   // Lo que se paga ahora: el total menos lo que queda debiendo.
   const ahora = total - montoDeDeuda(deuda)
   const falta =
     elegidas.length === 0 || precio === null || garantia === '' ||
+    Boolean(problemaDeDia(dia, { hoy, minimo: compraMasNueva })) ||
     extras.some(
       (extra) =>
         !loteDe(extra.clave) ||
@@ -126,6 +137,7 @@ export function ModalVenta({ lote, unidadInicial, alCerrar }) {
       vendedor,
       debe_ars: montoDeDeuda(deuda),
       [esCelular ? 'garantia_celulares' : 'garantia_accesorios']: garantia,
+      fecha: fechaParaLaBase(dia, hoy),
     }
     ejecutar(
       async () => {
@@ -270,6 +282,7 @@ export function ModalVenta({ lote, unidadInicial, alCerrar }) {
             <p className="etiqueta mb-1">Garantía</p>
             <CampoGarantia valor={garantia} alCambiar={setGarantia} />
           </div>
+          <CampoFecha etiqueta="Fecha de venta" valor={dia} hoy={hoy} minimo={compraMasNueva} alCambiar={setDia} ayuda="Si la venta fue otro día, cambiala." />
         </section>
 
         <p className="flex items-baseline justify-between gap-2 border-t border-neutral-200 pt-3 text-sm">
@@ -366,13 +379,18 @@ export function ModalVentaCombo({ combo, alCerrar }) {
   const [cobro, setCobro] = useState(COBRO_VACIO)
   const [deuda, setDeuda] = useState(DEUDA_VACIA)
   const [garantia, setGarantia] = useState(configuracion.garantia_dias_accesorios)
+  const [hoy] = useState(() => diaDe(new Date()))
+  const [dia, setDia] = useState(hoy)
   const [hecha, setHecha] = useState(null)
   const [ocupado, ejecutar] = useAccion()
 
   const total = (precio ?? 0) * cantidad
   const ahora = total - montoDeDeuda(deuda)
+  // Las unidades que salen con estos combos (en el mismo orden que venderCombo).
+  const compraMasNueva = diaDeLaCompraMasNueva(combo.partes.flatMap((parte) => parte.lote.disponibles.slice(0, parte.cantidad * cantidad)))
   const falta =
-    precio === null || garantia === '' || Boolean(problemaDeDeuda(deuda, total, persona.cliente)) || cobroIncompleto(cobro, ahora)
+    precio === null || garantia === '' || Boolean(problemaDeDia(dia, { hoy, minimo: compraMasNueva })) ||
+    Boolean(problemaDeDeuda(deuda, total, persona.cliente)) || cobroIncompleto(cobro, ahora)
 
   function confirmar(evento) {
     evento.preventDefault()
@@ -389,6 +407,7 @@ export function ModalVentaCombo({ combo, alCerrar }) {
           vendedor,
           debe_ars: montoDeDeuda(deuda),
           garantia_accesorios: garantia,
+          fecha: fechaParaLaBase(dia, hoy),
           // Asi el ticket dice que los accesorios salieron como combo.
           nota: `${cantidad > 1 ? `${cantidad} x ` : ''}${combo.nombre} a ${pesos(precio)} c/u`,
         })
@@ -430,6 +449,7 @@ export function ModalVentaCombo({ combo, alCerrar }) {
             <p className="etiqueta mb-1">Garantía</p>
             <CampoGarantia valor={garantia} alCambiar={setGarantia} />
           </div>
+          <CampoFecha etiqueta="Fecha de venta" valor={dia} hoy={hoy} minimo={compraMasNueva} alCambiar={setDia} ayuda="Si la venta fue otro día, cambiala." />
         </section>
 
         <p className="flex items-baseline justify-between gap-2 border-t border-neutral-200 pt-3 text-sm">

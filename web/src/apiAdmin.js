@@ -153,6 +153,10 @@ export const guardarAjustes = (ajustes) => llamar('guardar_ajustes', { p_datos: 
 
 // --- Stock -----------------------------------------------------------------
 
+// La fecha de compra elegida (ver servicios/fechas.js). Solo viaja si se
+// eligio otro dia: sin ella la base usa el momento en que se guarda.
+const conFecha = (fecha) => (fecha ? { p_fecha: fecha } : {})
+
 export const ingresarCelulares = (datos) =>
   llamar('ingresar_celulares', {
     p_modelo: datos.modelo,
@@ -168,6 +172,7 @@ export const ingresarCelulares = (datos) =>
     p_proveedor: datos.proveedor || null,
     // Opcional: sin precio, las unidades toman el que ya tenia el lote.
     p_precio_mayorista_usd: datos.precio_mayorista_usd ?? null,
+    ...conFecha(datos.fecha),
   })
 
 export const ingresarAccesorios = (datos) =>
@@ -181,6 +186,7 @@ export const ingresarAccesorios = (datos) =>
     p_cantidad: datos.cantidad,
     p_proveedor: datos.proveedor || null,
     p_precio_mayorista_usd: datos.precio_mayorista_usd ?? null,
+    ...conFecha(datos.fecha),
   })
 
 // tabla: 'celulares' o 'accesorios'. datos: los campos que identifican el lote.
@@ -206,9 +212,14 @@ export const cargarImeis = (clave, imeis, compra = null) =>
 // Un lote de compra: proveedor y la lista de modelos que vinieron.
 // celulares: [{ modelo, capacidad, color, bateria, detalles, costo_usd, precio_usd, cantidad, imeis }].
 // deudaUsd: lo que queda debiendose al proveedor por este lote (0 = pagado).
+// fecha: la de compra, si no es hoy (ver servicios/fechas.js).
 // Devuelve { compra, unidades }.
-export const ingresarCompra = (proveedor, nota, celulares, deudaUsd = 0) =>
-  llamar('ingresar_compra', { p_proveedor: proveedor, p_nota: nota, p_celulares: celulares, p_deuda_usd: deudaUsd || null })
+export const ingresarCompra = (proveedor, nota, celulares, deudaUsd = 0, fecha = null) =>
+  llamar('ingresar_compra', { p_proveedor: proveedor, p_nota: nota, p_celulares: celulares, p_deuda_usd: deudaUsd || null, ...conFecha(fecha) })
+
+// Corrige la fecha de compra (el dia que entraron al stock) de unas unidades.
+export const cambiarFechaCompra = (tabla, ids, fecha) =>
+  llamar('cambiar_fecha_compra', { p_tabla: tabla, p_ids: ids, p_fecha: fecha })
 
 // --- Listas de opciones y combos ---------------------------------------------
 // lista: 'modelo', 'capacidad', 'color' o 'tipo'.
@@ -285,8 +296,9 @@ export async function subirImagen(foto) {
 // --- Ventas y permutas -----------------------------------------------------
 
 // celulares y accesorios: listas [{ id, precio_usd }].
-// datos: { cliente, telefono, medio, efectivo_ars, debe_ars, garantia_celulares, garantia_accesorios }.
+// datos: { cliente, telefono, medio, efectivo_ars, debe_ars, garantia_celulares, garantia_accesorios, fecha }.
 // debe_ars: lo que queda en la cuenta del cliente (hace falta su nombre).
+// fecha: la de la venta, solo si no es hoy (ver servicios/fechas.js).
 // Devuelve { unidades, comprobante }: el comprobante es el numero de ticket.
 export const vender = (celulares, accesorios, datos = {}) =>
   llamar('vender', { p_celulares: celulares, p_accesorios: accesorios, p_datos: datos })
@@ -296,6 +308,10 @@ export const editarComprobante = (id, datos) => llamar('editar_comprobante', { p
 
 export const editarVenta = (tabla, ids, precio_usd) =>
   llamar('editar_venta', { p_tabla: tabla, p_ids: ids, p_precio_usd: precio_usd })
+
+// Corrige la fecha de una venta: cambia todo su ticket (todas sus unidades).
+export const cambiarFechaVenta = (tabla, ids, fecha) =>
+  llamar('cambiar_fecha_venta', { p_tabla: tabla, p_ids: ids, p_fecha: fecha })
 
 export const anularVenta = (tabla, ids) => llamar('anular_venta', { p_tabla: tabla, p_ids: ids })
 

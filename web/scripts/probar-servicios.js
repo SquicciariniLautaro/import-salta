@@ -27,6 +27,7 @@ import { armarCombos, venderCombo } from '../src/servicios/combos.js'
 import { proveedoresDelLote } from '../src/servicios/stock.js'
 import { enlaceAccesorio, enlaceCelular, extraerImeis, fechaDeCompra, soloFecha } from '../src/formato.js'
 import { comprasPorDia } from '../src/servicios/stock.js'
+import { diaDeLaCompraMasNueva, fechaParaLaBase, problemaDeDia } from '../src/servicios/fechas.js'
 import { descuentoPara, descuentosDe, precioEnEfectivo, problemaDeDescuento } from '../src/servicios/efectivo.js'
 import { claveDeLoteIngresado, urlImagen } from '../src/servicios/imagenes.js'
 import { datosDeSubida, firmar, leerCredenciales } from '../api/_cloudinary.js'
@@ -294,6 +295,27 @@ probar('comprasPorDia junta las unidades por el dia en que entraron, del mas vie
   assert.equal(fechaDeCompra(unidades.slice(0, 2)), `entre el ${soloFecha('2026-10-20T14:00:00Z')} y el ${soloFecha('2026-10-27T15:00:00Z')}`)
   assert.equal(fechaDeCompra([unidades[0], unidades[2]]), `el ${soloFecha('2026-10-27T15:00:00Z')}`)
   assert.equal(fechaDeCompra([{}]), '')
+})
+
+probar('fechaParaLaBase manda null si es el mismo dia y el mediodia local si es otro', () => {
+  assert.equal(fechaParaLaBase('2026-10-31', '2026-10-31'), null)
+  assert.equal(fechaParaLaBase('', '2026-10-31'), null)
+  const fecha = new Date(fechaParaLaBase('2026-10-20', '2026-10-31'))
+  assert.equal(diaDe(fecha), '2026-10-20')
+  assert.equal(fecha.getHours(), 12)
+})
+probar('una venta no puede ser futura ni de antes de la compra mas nueva', () => {
+  const unidades = [{ fecha_ingreso: '2026-10-20T15:00:00Z' }, { fecha_ingreso: '2026-10-25T15:00:00Z' }, {}]
+  const minimo = diaDeLaCompraMasNueva(unidades)
+  assert.equal(minimo, diaDe('2026-10-25T15:00:00Z'))
+  assert.equal(diaDeLaCompraMasNueva([]), '')
+  const hoy = '2026-10-31'
+  assert.equal(problemaDeDia('2026-10-28', { hoy, minimo }), '')
+  assert.equal(problemaDeDia(minimo, { hoy, minimo }), '')
+  assert.match(problemaDeDia('2026-10-21', { hoy, minimo }), /antes de la fecha de compra/)
+  assert.match(problemaDeDia('2026-11-01', { hoy }), /futura/)
+  assert.match(problemaDeDia('', { hoy }), /Elegí/)
+  assert.match(problemaDeDia('2026-10-30', { hoy, maximo: '2026-10-29' }), /después de la fecha de venta/)
 })
 
 console.log('comprobante')

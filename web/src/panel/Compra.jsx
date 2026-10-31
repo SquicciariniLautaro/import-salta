@@ -12,8 +12,10 @@ import { aPesos, dolares, fechaCorta, pesos } from '../formato.js'
 import { numeroDeTicket } from '../servicios/comprobante.js'
 import { claveDeLoteIngresado } from '../servicios/imagenes.js'
 import { sumar } from '../servicios/lotes.js'
+import { diaDe } from '../servicios/caja.js'
+import { fechaParaLaBase, problemaDeDia } from '../servicios/fechas.js'
 import { describir } from '../servicios/texto.js'
-import { CampoUsd, Cantidad, SelectorConOtro } from './Campos.jsx'
+import { CampoFecha, CampoUsd, Cantidad, SelectorConOtro } from './Campos.jsx'
 import { CamposDeCelular } from './Formularios.jsx'
 import { CampoFoto } from './FotoLote.jsx'
 import { ponerFotos, subirFotos } from './fotos.js'
@@ -40,6 +42,9 @@ export function ModalCompra({ proveedorInicial = '', alCerrar }) {
   // Si el lote queda debiendose al proveedor. La deuda vacia es el costo total.
   const [queDebe, setQueDebe] = useState(true)
   const [deuda, setDeuda] = useState('')
+  // Fecha de compra del lote: arranca en hoy.
+  const [hoy] = useState(() => diaDe(new Date()))
+  const [dia, setDia] = useState(hoy)
   const [ocupado, ejecutar] = useAccion()
 
   const unidades = modelos.reduce((suma, modelo) => suma + modelo.cantidad, 0)
@@ -47,6 +52,7 @@ export function ModalCompra({ proveedorInicial = '', alCerrar }) {
   const deudaUsd = !queDebe ? 0 : deuda === '' ? costoTotal : Number(deuda)
   const falta =
     !proveedor.trim() ||
+    Boolean(problemaDeDia(dia, { hoy })) ||
     (queDebe && deuda !== '' && !esMonto(deuda)) ||
     modelos.some((modelo) => !modelo.modelo.trim() || !esMonto(modelo.costo) || !esMonto(modelo.precio) || (modelo.mayorista !== '' && !esMonto(modelo.mayorista)))
 
@@ -89,6 +95,7 @@ export function ModalCompra({ proveedorInicial = '', alCerrar }) {
             imeis: modelo.imeis,
           })),
           deudaUsd,
+          fechaParaLaBase(dia, hoy),
         )
         const nuevos = await recargar()
         // La foto de cada modelo va al lote que se cargo en esta compra.
@@ -163,6 +170,9 @@ export function ModalCompra({ proveedorInicial = '', alCerrar }) {
             Nota
             <input className="campo" value={nota} onChange={(evento) => setNota(evento.target.value)} maxLength={300} placeholder="Opcional: número de factura, forma de pago..." />
           </label>
+          <div className="col-span-2">
+            <CampoFecha etiqueta="Fecha de compra" valor={dia} hoy={hoy} alCambiar={setDia} ayuda="Vale para todos los equipos del lote. Si lo compraste otro día, cambiala." />
+          </div>
         </div>
 
         {modelos.map((modelo, posicion) => (

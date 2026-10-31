@@ -48,6 +48,7 @@ traen lo que pidió Import Salta.
 | 10 | `20261026000000_imagenes.sql` | **Import Salta**: una foto por producto (celulares y accesorios) que sale en el catálogo. Las fotos se guardan en Cloudinary (ver *Fotos de los productos*). |
 | 11 | `20261028000000_descuento_efectivo.sql` | **Import Salta**: descuento pagando en efectivo (el catálogo muestra el precio con tarjeta y en efectivo) y el texto de las cuotas sin "en el local con posnet". |
 | 12 | `20261029000000_fecha_de_compra.sql` | **Import Salta**: el historial de ventas trae la fecha de compra de cada unidad vendida. |
+| 13 | `20261031000000_fechas_a_mano.sql` | **Import Salta**: elegir la fecha de compra al ingresar stock y la de venta al vender, y corregirlas después. |
 
 Para cada una:
 
@@ -194,8 +195,21 @@ en el sitio publicado.
 
 ## Fecha de compra y fecha de venta
 
-Cada celular y accesorio guarda solo el día en que entró al stock (la fecha de compra) y
-el día en que se vendió. Se ven en:
+Cada celular y accesorio guarda el día en que entró al stock (la fecha de compra) y el día
+en que se vendió. Las dos arrancan en hoy, pero se pueden cambiar:
+
+- Al cargar: `+ Ingresar`, `+ Lote proveedor` y `Permuta` tienen el campo *Fecha de compra*
+  (en la permuta, *Fecha de la permuta*: vale para el equipo que entra y el que sale).
+- Al vender: la ventana *Vendido* (y la de combos) tiene *Fecha de venta*. Esa fecha queda
+  también en el ticket, en la deuda que deje y en la `Caja`. El dólar de la venta es el de
+  hoy, el que esté cargado arriba.
+- Para corregir: en el stock, `Editar` el modelo → *Fecha de compra* (queda para todas sus
+  unidades sin vender). En `Ventas`, abrir la venta → *Fechas*: la de venta cambia todo el
+  ticket y la de compra, las unidades de ese renglón.
+- No se puede elegir un día futuro ni vender antes del día en que el equipo entró al stock:
+  si pasa, primero se corrige la fecha de compra.
+
+Se ven en:
 
 - `Celulares` / `Accesorios` → abrir el modelo: *Comprado: el 22/10/26*. Si las unidades
   entraron en días distintos, cada día con cuántas (*20/10/26 (2 u.) · 27/10/26 (4 u.)*).
@@ -205,7 +219,7 @@ el día en que se vendió. Se ven en:
 - El buscador de IMEI dice *Ingresó el ...* y *Vendido el ...* de cada equipo.
 
 El stock que se cargó con `stock_inicial.sql` figura comprado el día que se cargó
-(2026-10-22), no el día real en que lo compró el cliente.
+(2026-10-22). Si el cliente quiere la fecha real, la corrige con `Editar` en cada modelo.
 
 ## Cuotas y cobro con tarjeta
 
@@ -348,6 +362,7 @@ emite facturas electrónicas de ARCA.
 | "La subida de fotos funciona en el sitio publicado..." | Se está usando `npm run dev`: la función que firma solo corre en Vercel. Probar en el sitio publicado o con `npm run dev:prueba`. |
 | "Algo falló" al guardar una foto | Falta aplicar la migración 10: volver al paso 2. |
 | En `Ventas` no aparece "comprado el" | Falta aplicar la migración 12: volver al paso 2. |
+| Al ingresar o vender con otra fecha sale "Algo falló" (o la venta queda con la fecha de hoy) | Falta aplicar la migración 13: volver al paso 2. |
 | El catálogo no muestra el precio en efectivo | En `Ajustes` → *Precio en efectivo* el descuento está en 0, o falta la migración 11. Sin la migración 11, el descuento que se guarda en Ajustes vuelve a 0. |
 | *Usar el dólar blue de hoy* no trae nada | DolarApi no respondió: escribir la cotización a mano y `Guardar`. |
 | El ticket sale cortado, muy chico o con una hoja en blanco | En `Ajustes` → *Impresora*, corregir el ancho del rollo; en la ventana de impresión, márgenes en "Ninguno". |
