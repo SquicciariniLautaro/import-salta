@@ -6,13 +6,15 @@ import { useState } from 'react'
 import toast from 'react-hot-toast'
 import Modal from '../componentes/Modal.jsx'
 import CampoPesos from '../componentes/CampoPesos.jsx'
-import { buscarImei, editarLote, ingresarAccesorios, ingresarCelulares, registrarPermuta } from '../apiAdmin.js'
-import { aDolares, aPesos, extraerImei, fechaCorta, pesos } from '../formato.js'
+import { buscarImei, cambiarFechaCompra, editarLote, ingresarAccesorios, ingresarCelulares, registrarPermuta } from '../apiAdmin.js'
+import { aDolares, aPesos, extraerImei, fechaCorta, pesos, soloFecha } from '../formato.js'
 import { COBRO_VACIO, DEUDA_VACIA, cobroIncompleto, cobroParaLaBase, montoDeDeuda, numeroDeTicket, problemaDeDeuda } from '../servicios/comprobante.js'
 import { claveDeLoteIngresado } from '../servicios/imagenes.js'
-import { proveedoresDelLote } from '../servicios/stock.js'
+import { comprasPorDia, proveedoresDelLote } from '../servicios/stock.js'
+import { diaDe } from '../servicios/caja.js'
+import { diaDeLaCompraMasNueva, fechaParaLaBase, problemaDeDia } from '../servicios/fechas.js'
 import { describir } from '../servicios/texto.js'
-import { CampoUsd, Cantidad, SelectorConOtro } from './Campos.jsx'
+import { CampoFecha, CampoUsd, Cantidad, SelectorConOtro } from './Campos.jsx'
 import { CampoFoto } from './FotoLote.jsx'
 import { fotoDelLote, ponerFotos, subirFotos } from './fotos.js'
 import { CampoDeuda, CampoGarantia, CampoVendedor, CamposDeCliente, CamposDeCobro } from './Cobro.jsx'
@@ -138,6 +140,15 @@ export function FormularioLote({ tabla, modo, lote, alCerrar }) {
   const [proveedorTocado, setProveedorTocado] = useState(false)
   // Foto para el catalogo, opcional: { archivo, vista } o null (= no tocarla).
   const [foto, setFoto] = useState(null)
+  // Fecha de compra (el dia que entra al stock). Al cargar arranca en hoy; al
+  // editar, en la del lote (la mas vieja si sus unidades entraron en dias distintos).
+  const [hoy] = useState(() => diaDe(new Date()))
+  const unidadesDelLote = lote ? [...lote.disponibles, ...lote.conRevendedores, ...lote.senadas] : []
+  const diasDeCompra = modo === 'editar' ? comprasPorDia(unidadesDelLote) : []
+  const diaOriginal = diasDeCompra[0]?.dia || hoy
+  const [dia, setDia] = useState(diaOriginal)
+  // Al editar, la fecha solo se cambia si se la toco.
+  const [diaTocado, setDiaTocado] = useState(false)
   const [ocupado, ejecutar] = useAccion()
 
   const titulos = {
@@ -148,7 +159,7 @@ export function FormularioLote({ tabla, modo, lote, alCerrar }) {
 
   const falta =
     (esCelular ? !campos.modelo.trim() : !campos.tipo.trim()) || !esMonto(costo) || !esMonto(precio) ||
-    (mayorista !== '' && !esMonto(mayorista))
+    (mayorista !== '' && !esMonto(mayorista)) || Boolean(problemaDeDia(dia, { hoy }))
 
   function guardar(evento) {
     evento.preventDefault()
@@ -163,10 +174,14 @@ export function FormularioLote({ tabla, modo, lote, alCerrar }) {
         // Al editar, la base devuelve la clave (cambia si cambiaron los datos).
         let clave = null
         if (modo === 'editar') {
+          // Si se toco la fecha, queda para todas las unidades sin vender del lote.
+          if (diaTocado && (dia !== diaOriginal || diasDeCompra.length > 1)) {
+            await cambiarFechaCompra(tabla, unidadesDelLote.map((unidad) => unidad.id), new Date(`${dia}T12:00:00`).toISOString())
+          }
           clave = await editarLote(tabla, lote.clave, campos, montos.costo_usd, montos.precio_usd, proveedorTocado ? proveedor : null, montos.precio_mayorista_usd)
         }
-        else if (esCelular) await ingresarCelulares({ ...campos, ...montos, cantidad, imeis, proveedor })
-        else await ingresarAccesorios({ ...campos, ...montos, cantidad, proveedor })
+        else if (esCelular) await ingresarCelulares({ ...campos, ...montos, cantidad, imeis, proveedor, fecha: fechaParaLaBase(dia, hoy) })
+        else await ingresarAccesorios({ ...campos, ...montos, cantidad, proveedor, fecha: fechaParaLaBase(dia, hoy) })
         const nuevos = await recargar()
         await ponerFotos(tabla, [{ clave: clave ?? claveDeLoteIngresado(nuevos[tabla], campos), url }], recargar)
       },
@@ -254,6 +269,24 @@ export function FormularioLote({ tabla, modo, lote, alCerrar }) {
           />
         )}
 
+        <CampoFecha
+          etiqueta="Fecha de compra"
+          valor={dia}
+          hoy={hoy}
+          original={diaOriginal}
+          alCambiar={(valor) => {
+            setDia(valor)
+            setDiaTocado(true)
+          }}
+          ayuda={
+            modo === 'editar'
+              ? diasDeCompra.length > 1
+                ? `Hoy: ${diasDeCompra.map((otro) => `${soloFecha(otro.fecha)} (${otro.cantidad} u.)`).join(' · ')}. Si la cambiás, queda para todas las unidades sin vender.`
+                : 'El día que entró al stock. Si la cambiás, queda para todas las unidades sin vender.'
+              : 'El día que entró al stock. Si lo compraste otro día, cambiala.'
+          }
+        />
+
         <label className="etiqueta">
           Proveedor{modo === 'editar' ? '' : ' (opcional)'}
           <SelectorConOtro
@@ -301,12 +334,17 @@ export function ModalPermuta({ alCerrar }) {
   const [buscado, setBuscado] = useState('')
   // Si el equipo que entrega ya paso por el local: como se vendio (de buscar_imei).
   const [historial, setHistorial] = useState(null)
+  // Fecha de la permuta: la de la venta y la de ingreso del equipo recibido.
+  const [hoy] = useState(() => diaDe(new Date()))
+  const [dia, setDia] = useState(hoy)
   // Cuando la permuta se registro con un equipo entregado: { numero, imprimir }.
   const [hecha, setHecha] = useState(null)
   const [ocupado, ejecutar] = useAccion()
 
   const conStock = stock.celulares.filter((lote) => lote.cantidad > 0)
   const loteEntregado = conStock.find((lote) => lote.clave === claveEntregado)
+  // El equipo que se lleva no puede salir antes del dia en que entro al stock.
+  const compraMasNueva = loteEntregado ? diaDeLaCompraMasNueva(loteEntregado.disponibles.filter((unidad) => unidad.id === idEntregado)) : ''
 
   function elegirEntregado(clave) {
     const lote = conStock.find((candidato) => candidato.clave === clave)
@@ -377,7 +415,7 @@ export function ModalPermuta({ alCerrar }) {
   // Solo se puede dejar debiendo si el cliente tiene que pagar algo.
   const debe = diferencia > 0 ? montoDeDeuda(deuda) : 0
   const falta =
-    !campos.modelo.trim() || toma === null ||
+    !campos.modelo.trim() || toma === null || Boolean(problemaDeDia(dia, { hoy, minimo: compraMasNueva })) ||
     (loteEntregado &&
       (precioEntregado === null || garantia === '' ||
         (diferencia > 0 && Boolean(problemaDeDeuda(deuda, diferencia, persona.cliente))) ||
@@ -392,7 +430,9 @@ export function ModalPermuta({ alCerrar }) {
           { ...campos, imei: imeis[0] || '', valor_usd: valorUsd, precio_usd: lista === null ? valorUsd : aDolares(lista, cotizaciones.venta) },
           loteEntregado ? idEntregado : null,
           loteEntregado ? aDolares(precioEntregado, cotizaciones.venta) : null,
-          loteEntregado ? { ...persona, ...cobroParaLaBase(cobro), vendedor, debe_ars: debe, garantia_celulares: garantia } : {},
+          loteEntregado
+            ? { ...persona, ...cobroParaLaBase(cobro), vendedor, debe_ars: debe, garantia_celulares: garantia, fecha: fechaParaLaBase(dia, hoy) }
+            : { fecha: fechaParaLaBase(dia, hoy) },
         )
         await recargar()
         // Si se llevo un equipo hay un comprobante para imprimir; si no, se cierra.
@@ -522,6 +562,15 @@ export function ModalPermuta({ alCerrar }) {
             </div>
           )}
         </section>
+
+        <CampoFecha
+          etiqueta="Fecha de la permuta"
+          valor={dia}
+          hoy={hoy}
+          minimo={compraMasNueva}
+          alCambiar={setDia}
+          ayuda="Es la fecha de ingreso del equipo que se recibe y la de venta del que se lleva."
+        />
 
         <button type="submit" className="boton boton-oscuro w-full" disabled={ocupado || falta}>
           {ocupado ? 'Guardando...' : 'Registrar permuta'}

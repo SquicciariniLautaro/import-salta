@@ -10,10 +10,14 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import toast from 'react-hot-toast'
 import Modal, { Confirmar } from '../componentes/Modal.jsx'
 import CampoPesos from '../componentes/CampoPesos.jsx'
-import { anularVenta, editarComprobante, editarVenta, leerVentas } from '../apiAdmin.js'
+import { anularVenta, cambiarFechaCompra, cambiarFechaVenta, editarComprobante, editarVenta, leerVentas } from '../apiAdmin.js'
 import { aDolares, aPesos, dolares, extraerImei, fechaCorta, fechaDeCompra, nombreDeMes, normalizar, pesos } from '../formato.js'
 import { cobroParaLaBase, nombreDeMedio, numeroDeTicket } from '../servicios/comprobante.js'
 import { aCsv, armarVentas, mesDe, totalizar } from '../servicios/ventas.js'
+import { diaDe } from '../servicios/caja.js'
+import { problemaDeDia } from '../servicios/fechas.js'
+import { comprasPorDia } from '../servicios/stock.js'
+import { CampoFecha } from './Campos.jsx'
 import { CamposDeCliente, CamposDeCobro } from './Cobro.jsx'
 import { CampoBusqueda } from './Imei.jsx'
 import { IconoImpresora, VentanaTicket } from './Impresion.jsx'
@@ -335,6 +339,8 @@ function ModalVentaHecha({ renglon, comprobante, alCerrar }) {
         </button>
       </form>
 
+      <FechasDeVenta renglon={renglon} alCerrar={alCerrar} />
+
       {comprobante && <DatosDeComprobante comprobante={comprobante} total={renglon.cobrado_ars} alCerrar={alCerrar} />}
 
       <section className="mt-5 border-t border-neutral-200 pt-4">
@@ -345,6 +351,79 @@ function ModalVentaHecha({ renglon, comprobante, alCerrar }) {
         </button>
       </section>
     </Modal>
+  )
+}
+
+// Corregir la fecha de venta y la de compra de las unidades de un renglon.
+// La de venta cambia todo el ticket (tiene una sola fecha); la de compra, solo
+// estas unidades.
+function FechasDeVenta({ renglon, alCerrar }) {
+  const { recargar } = usePanel()
+  const [hoy] = useState(() => diaDe(new Date()))
+  const ventaOriginal = diaDe(renglon.fecha)
+  const diasDeCompra = comprasPorDia(renglon.unidades)
+  const compraOriginal = diasDeCompra[0]?.dia || ''
+  const [venta, setVenta] = useState(ventaOriginal)
+  const [compra, setCompra] = useState(compraOriginal)
+  const [compraTocada, setCompraTocada] = useState(false)
+  const [ocupado, ejecutar] = useAccion()
+  const ids = renglon.unidades.map((unidad) => unidad.id)
+
+  const cambiaVenta = venta !== ventaOriginal
+  // Si entraron en dias distintos, elegir una fecha las deja a todas en ese dia.
+  const cambiaCompra = compraTocada && (compra !== compraOriginal || diasDeCompra.length > 1)
+  const problema =
+    problemaDeDia(venta, { hoy, minimo: compra }) || (compraOriginal || compraTocada ? problemaDeDia(compra, { hoy, maximo: venta }) : '')
+
+  function guardar(evento) {
+    evento.preventDefault()
+    const mediodia = (dia) => new Date(`${dia}T12:00:00`).toISOString()
+    ejecutar(
+      async () => {
+        // Primero la que no choca con la otra: la compra va primero salvo que
+        // quede despues de la venta de antes (ahi, primero se mueve la venta).
+        const pasos = [
+          cambiaCompra && (() => cambiarFechaCompra(renglon.tabla, ids, mediodia(compra))),
+          cambiaVenta && (() => cambiarFechaVenta(renglon.tabla, ids, mediodia(venta))),
+        ].filter(Boolean)
+        if (cambiaCompra && cambiaVenta && compra > ventaOriginal) pasos.reverse()
+        for (const paso of pasos) await paso()
+        await recargar()
+      },
+      { exito: 'Fechas corregidas', alTerminar: alCerrar },
+    )
+  }
+
+  return (
+    <form onSubmit={guardar} className="mt-5 space-y-3 border-t border-neutral-200 pt-4">
+      <h3 className="text-sm font-semibold">Fechas</h3>
+      <div className="grid grid-cols-2 gap-3">
+        <CampoFecha
+          etiqueta="Fecha de venta"
+          valor={venta}
+          hoy={hoy}
+          original={ventaOriginal}
+          minimo={compra}
+          alCambiar={setVenta}
+          ayuda="Cambia todo el ticket."
+        />
+        <CampoFecha
+          etiqueta="Fecha de compra"
+          valor={compra}
+          hoy={hoy}
+          original={compraOriginal}
+          maximo={venta}
+          alCambiar={(valor) => {
+            setCompra(valor)
+            setCompraTocada(true)
+          }}
+          ayuda={diasDeCompra.length > 1 ? 'Entraron en días distintos: si la cambiás, queda para todas.' : 'El día que entró al stock.'}
+        />
+      </div>
+      <button type="submit" className="boton boton-oscuro w-full" disabled={ocupado || Boolean(problema) || (!cambiaVenta && !cambiaCompra)}>
+        {ocupado ? 'Guardando...' : 'Corregir fechas'}
+      </button>
+    </form>
   )
 }
 

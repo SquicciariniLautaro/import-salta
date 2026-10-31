@@ -2,8 +2,9 @@
 // Campos de formulario que se repiten en el panel.
 
 import { useState } from 'react'
-import { aPesos, pesos } from '../formato.js'
+import { aPesos, pesos, soloFecha } from '../formato.js'
 import { descuentoPara, descuentosDe, precioEnEfectivo } from '../servicios/efectivo.js'
+import { problemaDeDia } from '../servicios/fechas.js'
 import { usePanel } from './contexto.js'
 
 // Desplegable con una ultima opcion "Otro (escribir)". Se usa en lugar de
@@ -142,5 +143,36 @@ export function ElegirPrecio({ minorista, mayorista, tabla, valor, alElegir }) {
         </button>
       ))}
     </div>
+  )
+}
+
+// Elegir un dia (la fecha de compra o la de venta). Arranca en hoy y no deja
+// elegir uno futuro ni, si hay "minimo", uno anterior (por ejemplo, vender
+// antes de que el equipo entrara al stock). valor, hoy y minimo: "AAAA-MM-DD".
+// original: el dia con el que arranca (hoy, salvo al corregir una fecha).
+// maximo: opcional, el ultimo dia que se puede elegir (si no, hoy).
+export function CampoFecha({ etiqueta, valor, alCambiar, hoy, original = hoy, minimo = '', maximo = '', ayuda }) {
+  const problema = problemaDeDia(valor, { hoy, minimo, maximo })
+  // El dia contra el que choca, para mostrarlo: "(22/10/26)".
+  const limite = minimo && valor < minimo ? minimo : maximo && valor > maximo ? maximo : ''
+  return (
+    <label className="etiqueta">
+      {etiqueta}
+      <input
+        type="date"
+        className="campo"
+        value={valor}
+        min={minimo || undefined}
+        max={maximo && maximo < hoy ? maximo : hoy}
+        onChange={(evento) => alCambiar(evento.target.value)}
+      />
+      <span className={`mt-0.5 block text-[11px] font-normal ${problema ? 'text-red-700' : 'text-neutral-500'}`}>
+        {problema
+          ? `${problema}${limite ? ` (${soloFecha(`${limite}T12:00:00`)})` : ''}.`
+          : original === hoy && valor !== hoy
+            ? `Queda con fecha ${soloFecha(`${valor}T12:00:00`)}, no la de hoy.`
+            : ayuda}
+      </span>
+    </label>
   )
 }
