@@ -96,10 +96,6 @@ export function opcionesDeTarjeta(tarjeta) {
   return [{ cuotas: 1, recargo: Number(tarjeta?.un_pago) || 0 }, ...(tarjeta?.planes || [])]
 }
 
-// "Visa / Mastercard" si hay mas de una tarjeta; nada si hay una sola (no
-// hace falta decir cual).
-export const nombreSiHayVarias = (tarjeta, tarjetas) => (tarjetas.length > 1 ? tarjeta.nombre : '')
-
 // Las tarjetas que muestra cada tabla del catalogo: en los celulares siempre;
 // en los accesorios solo si el dueno lo eligio. Una tarjeta sin planes ni
 // recargo en 1 pago no tiene nada que mostrar.
