@@ -23,7 +23,8 @@ import { agregarOpcion, guardarAjustes, quitarOpcion } from '../apiAdmin.js'
 import { armarComprobante, paginaDeTicket } from '../servicios/comprobante.js'
 import { TARJETAS_MAXIMAS, cuotasDe, ordenarPlanes, problemaDeTarjetas, tarjetasDe, textoDeRecargo, totalConRecargo } from '../servicios/cuotas.js'
 import { DESCUENTO_MAXIMO, descuentosDe, precioEnEfectivo, problemaDeDescuento } from '../servicios/efectivo.js'
-import { pesos } from '../formato.js'
+import { pesos, textoDeLista } from '../formato.js'
+import { DATOS_DE_LISTA, LARGO_ENCABEZADO, LARGO_PIE, LISTA_DE_FABRICA, opcionesDeLista, problemaDeLista } from '../servicios/lista.js'
 import { ticketDeVenta } from '../servicios/escpos.js'
 import { etiquetasParaTicketera, logoDeTicket } from './ticketera.js'
 import { ConDuplicado, HojaEtiquetas, IconoImpresora, TicketVenta, VentanaImpresion } from './Impresion.jsx'
@@ -90,7 +91,16 @@ const VENTA_DE_PRUEBA = {
   ],
 }
 
-const ETIQUETA_DE_PRUEBA = [{ llave: 1, titulo: 'IPHONE 13 128GB AZUL', detalle: '88%', codigo: '356789012345678' }]
+// Dos equipos inventados para mostrar como queda la lista para compartir.
+const CELULARES_DE_EJEMPLO = [
+  { clave: 'EJEMPLO1', marca: 'IPHONE', familia: '13', modelo: 'IPHONE 13', capacidad: '128GB', color: 'AZUL', bateria: '88%', detalles: '', precio_usd: 400 },
+  {
+    clave: 'EJEMPLO2', marca: 'IPHONE', familia: '15 PRO', modelo: 'IPHONE 15 PRO', capacidad: '256GB', color: 'TITANIO',
+    bateria: '100%', detalles: 'NUEVO SELLADO', precio_usd: 950,
+  },
+]
+
+const ETIQUETA_DE_PRUEBA =[{ llave: 1, titulo: 'IPHONE 13 128GB AZUL', detalle: '88%', codigo: '356789012345678' }]
 
 export default function PestanaAjustes() {
   const { configuracion, recargar } = usePanel()
@@ -108,6 +118,8 @@ export default function PestanaAjustes() {
   // migracion del descuento la base no los trae: arrancan en 0.
   const [descuentos, setDescuentos] = useState(() => descuentosEnTexto(configuracion))
   const [puntos, setPuntos] = useState(configuracion.revision_puntos || [])
+  // Lo que lleva la lista que se comparte por WhatsApp desde el catalogo.
+  const [lista, setLista] = useState(() => opcionesDeLista(configuracion.lista_compartir))
   const [prueba, setPrueba] = useState(null) // 'ticket' | 'etiqueta'
   const [ocupado, ejecutar] = useAccion()
   const fijar = (nombre) => (evento) => setCampos({ ...campos, [nombre]: evento.target.value })
@@ -121,12 +133,14 @@ export default function PestanaAjustes() {
     JSON.stringify(tarjetasOrdenadas(tarjetas)) !== JSON.stringify(tarjetasDe(configuracion)) ||
     cuotasAccesorios !== Boolean(configuracion.cuotas_accesorios) ||
     JSON.stringify(descuentos) !== JSON.stringify(descuentosEnTexto(configuracion)) ||
-    JSON.stringify(puntos) !== JSON.stringify(configuracion.revision_puntos || [])
+    JSON.stringify(puntos) !== JSON.stringify(configuracion.revision_puntos || []) ||
+    JSON.stringify(lista) !== JSON.stringify(opcionesDeLista(configuracion.lista_compartir))
   const problemaCuotas = problemaDeTarjetas(tarjetas)
+  const problemaLista = problemaDeLista(lista)
   const problemaEfectivo = problemaDeDescuento(descuentos.celulares) || problemaDeDescuento(descuentos.accesorios)
   const falta =
     !campos.negocio_nombre.trim() || NUMEROS.some((nombre) => campos[nombre] === '' || Number(campos[nombre]) < 0) ||
-    Boolean(problemaCuotas) || Boolean(problemaEfectivo) || puntos.length === 0 || !campos.acta_condiciones.trim()
+    Boolean(problemaCuotas) || Boolean(problemaEfectivo) || Boolean(problemaLista) || puntos.length === 0 || !campos.acta_condiciones.trim()
 
   // Lo que hay escrito ahora, con los numeros como numeros: sirve para guardar
   // y para probar la impresion antes de guardar.
@@ -139,6 +153,7 @@ export default function PestanaAjustes() {
     descuento_efectivo_celulares: Number(descuentos.celulares),
     descuento_efectivo_accesorios: Number(descuentos.accesorios),
     revision_puntos: puntos,
+    lista_compartir: lista,
   }
 
   function guardar(evento) {
@@ -239,6 +254,19 @@ export default function PestanaAjustes() {
           accesorios={cuotasAccesorios}
           alCambiarAccesorios={setCuotasAccesorios}
           problema={problemaCuotas}
+        />
+
+        <SeccionLista
+          lista={lista}
+          alCambiar={setLista}
+          problema={problemaLista}
+          ejemplo={{
+            cotizacion: configuracion.cotizacion_dolar || 1000,
+            celulares: CELULARES_DE_EJEMPLO,
+            cuotas: { tarjetas: tarjetasOrdenadas(tarjetas), accesorios: cuotasAccesorios },
+            efectivo: { celulares: Number(descuentos.celulares) || 0, accesorios: Number(descuentos.accesorios) || 0 },
+            lista,
+          }}
         />
 
         <SeccionRevision
@@ -644,6 +672,65 @@ function EditorDeTarjeta({ tarjeta, primera, alCambiar, alSubir, alQuitar }) {
         ))}
       </div>
     </div>
+  )
+}
+
+// Lo que lleva la lista que se comparte por WhatsApp desde el catalogo (el
+// boton "Compartir lista por WhatsApp"): el texto de arriba, el de abajo y que
+// datos van. Abajo, como queda, con dos equipos de ejemplo.
+function SeccionLista({ lista, alCambiar, problema, ejemplo }) {
+  const fijar = (cambios) => alCambiar({ ...lista, ...cambios })
+
+  return (
+    <section className="tarjeta space-y-3 p-3">
+      <Titulo
+        texto="Lista para compartir por WhatsApp"
+        ayuda="Es el mensaje del botón «Compartir lista por WhatsApp» del catálogo. Quien lo toca lo puede retocar antes de mandarlo. Para negrita, el texto entre asteriscos: *así*."
+      />
+      <label className="etiqueta">
+        Texto de arriba
+        <textarea
+          className="campo min-h-16"
+          rows={2}
+          value={lista.encabezado}
+          onChange={(evento) => fijar({ encabezado: evento.target.value })}
+          maxLength={LARGO_ENCABEZADO}
+          placeholder="Opcional: por ejemplo, *Import Salta* · Lista de precios"
+        />
+      </label>
+      <label className="etiqueta">
+        Texto de abajo
+        <textarea
+          className="campo min-h-16"
+          rows={2}
+          value={lista.pie}
+          onChange={(evento) => fijar({ pie: evento.target.value })}
+          maxLength={LARGO_PIE}
+          placeholder="Opcional: por ejemplo, Escribinos para reservar el tuyo"
+        />
+      </label>
+      <fieldset>
+        <legend className="etiqueta mb-1.5">Qué datos van</legend>
+        <div className="grid gap-1.5 sm:grid-cols-2">
+          {DATOS_DE_LISTA.map((dato) => (
+            <label key={dato.id} className="flex items-center gap-2 text-sm">
+              <input type="checkbox" className="h-4 w-4 accent-black" checked={lista[dato.id]} onChange={(evento) => fijar({ [dato.id]: evento.target.checked })} />
+              {dato.nombre}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <button type="button" className="boton boton-claro boton-chico" onClick={() => alCambiar(LISTA_DE_FABRICA)}>
+        Volver a como venía
+      </button>
+      {problema && <p className="text-xs text-red-700">{problema}</p>}
+      <div>
+        <p className="etiqueta mb-1">Así queda (con dos equipos de ejemplo)</p>
+        <pre className="max-h-72 overflow-auto rounded-lg bg-neutral-100 px-3 py-2 font-sans text-xs leading-relaxed break-words whitespace-pre-wrap text-neutral-800">
+          {textoDeLista(ejemplo, 'celulares', `${window.location.origin}/`)}
+        </pre>
+      </div>
+    </section>
   )
 }
 

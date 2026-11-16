@@ -50,6 +50,7 @@ traen lo que pidió Import Salta.
 | 12 | `20261029000000_fecha_de_compra.sql` | **Import Salta**: el historial de ventas trae la fecha de compra de cada unidad vendida. |
 | 13 | `20261031000000_fechas_a_mano.sql` | **Import Salta**: elegir la fecha de compra al ingresar stock y la de venta al vender, y corregirlas después. |
 | 14 | `20261116000000_tarjetas.sql` | **Import Salta**: cada tarjeta (Visa / Mastercard, Naranja...) con su recargo en 1 pago y sus propias cuotas; al cobrar se elige la tarjeta y la venta guarda con cuál se pagó. Las cuotas que ya estaban cargadas pasan a "Visa / Mastercard" y se suma Naranja (3 cuotas 24 %, 6 cuotas 43 %). |
+| 15 | `20261117000000_lista_compartir.sql` | **Import Salta**: el texto de arriba, el de abajo y los datos de la lista que se comparte por WhatsApp desde el catálogo (se eligen en Ajustes). |
 
 Para cada una:
 

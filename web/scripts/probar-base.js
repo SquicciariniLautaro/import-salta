@@ -136,6 +136,8 @@ await probar('catalogo_publico solo trae campos publicos y unidades disponibles'
     'cuotas', 'planes', 'recargo', 'leyenda',
     // Las tarjetas con sus cuotas: { cuotas: { tarjetas: [{ nombre, un_pago, planes }] } }.
     'tarjetas', 'un_pago',
+    // Las opciones de la lista para compartir por WhatsApp: { lista: { encabezado, pie, color, ... } }.
+    'lista', 'encabezado', 'pie', 'enlace',
     // La foto de cada lote (direccion de Cloudinary, publica).
     'imagen',
     // El descuento pagando en efectivo: { efectivo: { celulares, accesorios } }.
@@ -1403,6 +1405,36 @@ await probar('la venta guarda con que tarjeta se pago, y se borra si deja de ser
   // La base no deja una tarjeta en un pago que no es con tarjeta.
   await rechaza(sql(`update public.comprobantes set medio = 'efectivo', tarjeta = 'Naranja' where id = $1`, [comprobante]), /comprobantes_tarjeta_valida/)
   await admin('anular_venta', { p_tabla: 'celulares', p_ids: [libre] })
+})
+
+console.log('\nImport Salta: lista para compartir por WhatsApp')
+
+await probar('el dueno elige los textos y los datos de la lista, y el catalogo publico los trae', async () => {
+  // De fabrica: el nombre del local arriba, nada abajo y todos los datos.
+  const LISTA_DE_FABRICA = {
+    encabezado: '*Import Salta* · Lista de precios', pie: '',
+    color: true, bateria: true, detalles: true, efectivo: true, cuotas: true, enlace: true,
+  }
+  assert.deepEqual((await rpc('catalogo_publico')).lista, LISTA_DE_FABRICA)
+
+  await admin('guardar_ajustes', {
+    p_datos: { lista_compartir: { encabezado: '  📱 *Lista*   de hoy \r\n\n\n\n Salta  ', pie: 'Escribinos 👇', bateria: false, enlace: false } },
+  })
+  const esperada = { ...LISTA_DE_FABRICA, encabezado: '📱 *Lista* de hoy\n\nSalta', pie: 'Escribinos 👇', bateria: false, enlace: false }
+  assert.deepEqual((await admin('panel_datos')).configuracion.lista_compartir, esperada)
+  assert.deepEqual((await rpc('catalogo_publico')).lista, esperada)
+  // Lo que no se manda queda como estaba.
+  await admin('guardar_ajustes', { p_datos: { ticket_pie: 'Gracias' } })
+  assert.deepEqual((await rpc('catalogo_publico')).lista, esperada)
+
+  const guardar = (lista_compartir) => admin('guardar_ajustes', { p_datos: { lista_compartir } })
+  await rechaza(guardar({ encabezado: 'x'.repeat(301) }), /texto de arriba/)
+  await rechaza(guardar({ pie: 'x'.repeat(501) }), /texto de abajo/)
+  await rechaza(guardar({ color: 'quizas' }), /no son válidas/)
+  await rechaza(guardar([]), /no son válidas/)
+  // Solo el dueno la cambia.
+  await rechaza(rpc('guardar_ajustes', { p_datos: { lista_compartir: { pie: 'hola' } } }), /permission denied|administrador/)
+  await guardar(LISTA_DE_FABRICA)
 })
 
 await probar('la migracion pasa los planes que ya estaban a "Visa / Mastercard" y suma Naranja, sin pisar tarjetas cargadas', async () => {

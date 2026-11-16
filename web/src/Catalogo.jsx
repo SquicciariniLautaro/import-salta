@@ -19,9 +19,9 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { obtenerCatalogo } from './api.js'
 import { NEGOCIO, rutaPublica } from './negocio.js'
-import { aPesos, enlaceAccesorio, enlaceCelular, normalizar, pesos, precioSegunCantidad } from './formato.js'
+import { aPesos, enlaceAccesorio, enlaceCelular, enlaceCompartir, normalizar, pesos, precioSegunCantidad, textoDeLista } from './formato.js'
 import { agruparPorFamilia, tituloDeFamilia } from './servicios/stock.js'
-import { cuotaDestacada, cuotasDe, nombreSiHayVarias, planMasLargo, tarjetasPara, textoDeRecargo, todosLosPlanes, totalConRecargo } from './servicios/cuotas.js'
+import { cuotaDestacada, cuotasDe, planMasLargo, tarjetasPara, textoDeRecargo, todosLosPlanes, totalConRecargo } from './servicios/cuotas.js'
 import { descuentoPara, precioEnEfectivo } from './servicios/efectivo.js'
 import PuntoColor from './componentes/PuntoColor.jsx'
 import Foto from './componentes/Foto.jsx'
@@ -125,6 +125,110 @@ function BotonWhatsApp({ enlace, descripcion }) {
     >
       <IconoWhatsApp />
     </a>
+  )
+}
+
+// Boton para mandar por WhatsApp la lista completa de la pestana (sin el
+// filtro del buscador). Abre el mensaje ya armado (con lo que eligio el dueno
+// en Ajustes) para retocarlo antes de mandarlo.
+function BotonCompartirLista({ catalogo, pestana }) {
+  const [abierto, setAbierto] = useState(false)
+  return (
+    <div className="border-b border-borde px-3 py-2.5">
+      <button
+        type="button"
+        onClick={() => setAbierto(true)}
+        className="boton boton-verde w-full"
+        aria-label={`Compartir la lista de ${pestana} por WhatsApp`}
+      >
+        <IconoWhatsApp />
+        Compartir lista por WhatsApp
+      </button>
+      {abierto && <VentanaCompartir catalogo={catalogo} pestana={pestana} alCerrar={() => setAbierto(false)} />}
+    </div>
+  )
+}
+
+// El mensaje de la lista en un cuadro de texto, para cambiar lo que se quiera
+// antes de mandarlo. "Enviar por WhatsApp" abre WhatsApp para elegir a quien.
+function VentanaCompartir({ catalogo, pestana, alCerrar }) {
+  const original = textoDeLista(catalogo, pestana, `${window.location.origin}${rutaPublica('')}`)
+  const [texto, setTexto] = useState(original)
+  const [copiado, setCopiado] = useState(false)
+
+  useEffect(() => {
+    const alTeclear = (evento) => evento.key === 'Escape' && alCerrar()
+    document.addEventListener('keydown', alTeclear)
+    const anterior = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', alTeclear)
+      document.body.style.overflow = anterior
+    }
+  }, [alCerrar])
+
+  async function copiar() {
+    try {
+      await navigator.clipboard.writeText(texto)
+      setCopiado(true)
+      setTimeout(() => setCopiado(false), 2000)
+    } catch {
+      // Sin permiso para copiar: queda el texto a mano para copiarlo.
+    }
+  }
+
+  // Se dibuja colgada de <body> (ver la nota de componentes/Modal.jsx).
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="titulo-compartir"
+      onClick={alCerrar}
+      className="animate-aparecer fixed inset-0 z-50 flex items-end justify-center bg-negro/80 sm:items-center sm:p-4"
+    >
+      <div
+        onClick={(evento) => evento.stopPropagation()}
+        className="flex max-h-[92dvh] w-full max-w-lg flex-col gap-3 rounded-t-2xl border border-borde bg-superficie p-4 sm:rounded-2xl"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 id="titulo-compartir" className="text-base font-semibold text-blanco">
+              Lista de {pestana}
+            </h2>
+            <p className="text-xs text-neutral-500">Podés cambiar lo que quieras antes de mandarla.</p>
+          </div>
+          <button type="button" onClick={alCerrar} aria-label="Cerrar" className="-m-1 rounded-full p-2 text-neutral-500 hover:text-blanco">
+            ✕
+          </button>
+        </div>
+        <textarea
+          value={texto}
+          onChange={(evento) => setTexto(evento.target.value)}
+          aria-label="Mensaje para compartir"
+          className="campo min-h-48 flex-1 resize-none border-borde bg-negro font-mono text-sm leading-relaxed"
+          rows={14}
+        />
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={copiar} className="boton border border-borde text-blanco">
+            {copiado ? 'Copiado' : 'Copiar'}
+          </button>
+          <button type="button" onClick={() => setTexto(original)} disabled={texto === original} className="boton border border-borde text-blanco disabled:opacity-40">
+            Volver al original
+          </button>
+        </div>
+        <a
+          href={enlaceCompartir(texto)}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-disabled={!texto.trim()}
+          className={`boton boton-verde w-full ${texto.trim() ? '' : 'pointer-events-none opacity-40'}`}
+        >
+          <IconoWhatsApp />
+          Enviar por WhatsApp
+        </a>
+      </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -294,32 +398,16 @@ function Precio({ precioArs, descuento }) {
 
 // --- Cuotas de un renglon -----------------------------------------------------
 
-// Lo que se ve debajo del equipo: la mejor cuota a la vista (la mas larga sin
-// interes o, si no hay, la mas larga) y "Ver cuotas" para ver todas.
+// Lo que se ve debajo del equipo: solo "Ver cuotas", que abre las cuotas de
+// cada tarjeta. (El cliente pidio sacar la cuota que se mostraba a la vista.)
 function ResumenCuotas({ precioArs, tarjetas, abierto, alAlternar }) {
-  if (!(precioArs > 0)) return null
-  const destacada = cuotaDestacada(precioArs, tarjetas)
-  if (!destacada) return null
-  // Con varias tarjetas se dice con cual es esa cuota.
-  const conTarjeta = nombreSiHayVarias({ nombre: destacada.tarjeta }, tarjetas)
-  // Cuantas opciones hay en el detalle: si es una sola, ya se esta viendo.
-  const opciones = tarjetas.reduce((suma, tarjeta) => suma + tarjeta.planes.length + (tarjeta.un_pago > 0 ? 1 : 0), 0)
+  if (!(precioArs > 0) || tarjetas.length === 0) return null
 
   return (
     <p className="mt-0.5 text-[11px] leading-snug">
-      <span className={destacada.sin_interes ? 'text-verde' : 'text-neutral-600'}>
-        {destacada.cuotas} cuotas{destacada.sin_interes ? ' sin interés' : ''} de{' '}
-        <span className="whitespace-nowrap">{pesos(destacada.cuota_ars)}</span>
-        {conTarjeta && ` con ${conTarjeta}`}
-      </span>
-      {opciones > 1 && (
-        <>
-          {' · '}
-          <button type="button" onClick={alAlternar} aria-expanded={abierto} className="enlace-raya font-medium text-azul">
-            {abierto ? 'Ocultar cuotas' : 'Ver cuotas'}
-          </button>
-        </>
-      )}
+      <button type="button" onClick={alAlternar} aria-expanded={abierto} className="enlace-raya font-medium text-azul">
+        {abierto ? 'Ocultar cuotas' : 'Ver cuotas'}
+      </button>
     </p>
   )
 }
@@ -794,6 +882,7 @@ export default function Catalogo() {
       <main className="mx-auto w-full max-w-2xl flex-1">
         {carga.datos && <AvisoEfectivo descuento={descuentoPara(pestana, carga.datos.efectivo)} />}
         {carga.datos && <AvisoCuotas cuotas={carga.datos.cuotas} />}
+        {carga.fase === 'listo' && carga.datos[pestana].length > 0 && <BotonCompartirLista catalogo={carga.datos} pestana={pestana} />}
 
         {carga.fase === 'cargando' && <Cargando />}
 

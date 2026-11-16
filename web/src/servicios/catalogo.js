@@ -9,6 +9,7 @@ import { aDiezmilesimos, promedio } from './lotes.js'
 import { familiaDeCelular, marcaDe, ordenarLotes } from './orden.js'
 import { resolverTramo } from './precios.js'
 import { tarjetasDe } from './cuotas.js'
+import { opcionesDeLista } from './lista.js'
 
 export function armarCatalogo(crudo) {
   const cotizacion = Number(crudo.cotizacion)
@@ -87,5 +88,8 @@ export function armarCatalogo(crudo) {
     accesorios: Number(crudo.efectivo?.accesorios) || 0,
   }
 
-  return { cotizacion, cuotas, efectivo, celulares, accesorios: ordenarLotes([...accesorios, ...combos]) }
+  // Lo que lleva la lista para compartir por WhatsApp (ver servicios/lista.js).
+  const lista = opcionesDeLista(crudo.lista)
+
+  return { cotizacion, cuotas, efectivo, lista, celulares, accesorios: ordenarLotes([...accesorios, ...combos]) }
 }

@@ -3,8 +3,10 @@
 
 import { NEGOCIO } from './negocio.js'
 import { aDolares, aPesos } from './servicios/precios.js'
-import { precioEnEfectivo } from './servicios/efectivo.js'
-import { comprasPorDia } from './servicios/stock.js'
+import { descuentoPara, precioEnEfectivo } from './servicios/efectivo.js'
+import { agruparPorFamilia, comprasPorDia, tituloDeFamilia } from './servicios/stock.js'
+import { planMasLargo, tarjetasPara, todosLosPlanes } from './servicios/cuotas.js'
+import { opcionesDeLista } from './servicios/lista.js'
 
 // Se vuelven a exportar para que las pantallas las tomen de un solo lugar.
 export { aDolares, aPesos }
@@ -72,6 +74,58 @@ export function enlaceAccesorio(lote, cantidad, cotizacion, descuento = 0) {
     efectivo !== null && `En efectivo: ${pesos(efectivo)} c/u`,
     cantidad > 1 && `Total: ${pesos(porUnidad * cantidad)}${efectivo === null ? '' : ` (en efectivo ${pesos(efectivo * cantidad)})`}`,
   ])
+}
+
+// --- Lista para compartir ------------------------------------------------------
+
+// El texto de la lista completa de una pestana del catalogo ('celulares' o
+// 'accesorios'), para mandar por WhatsApp. Lo que lleva lo elige el dueno en
+// Ajustes (catalogo.lista, ver servicios/lista.js):
+//   * arriba, su texto (por ejemplo "*Import Salta* · Lista de precios");
+//   * cada familia con lo que hay: el color, la bateria y los detalles si los
+//     eligio, y el precio con tarjeta (y en efectivo, si hay descuento);
+//   * al final, hasta cuantas cuotas, su texto de abajo y el link del catalogo.
+// catalogo: lo que devuelve armarCatalogo().
+export function textoDeLista(catalogo, tabla, enlaceCatalogo = '') {
+  const opciones = opcionesDeLista(catalogo.lista)
+  const descuento = opciones.efectivo ? descuentoPara(tabla, catalogo.efectivo) : 0
+  const renglones = []
+  if (opciones.encabezado.trim()) renglones.push(opciones.encabezado.trim(), '')
+
+  for (const grupo of agruparPorFamilia(catalogo[tabla] || [])) {
+    renglones.push(`*${tabla === 'celulares' ? tituloDeFamilia(grupo) : grupo.familia}*`)
+    for (const lote of grupo.lotes) {
+      const precio = aPesos(lote.precio_usd, catalogo.cotizacion)
+      const efectivo = precioEnEfectivo(precio, descuento)
+      const partes = [
+        tabla === 'celulares' ? lote.capacidad || lote.modelo : lote.modelo || lote.tipo,
+        opciones.color && lote.color,
+        opciones.bateria && tabla === 'celulares' && lote.bateria && `batería ${lote.bateria}`,
+        opciones.detalles && lote.detalles,
+      ]
+      const enEfectivo = efectivo === null ? '' : ` (efectivo ${pesos(efectivo)})`
+      renglones.push(`• ${partes.filter(Boolean).join(' · ')}: ${pesos(precio)}${enEfectivo}`)
+    }
+    renglones.push('')
+  }
+
+  if (descuento > 0) renglones.push(`Precios con tarjeta. En efectivo, ${descuento} % de descuento.`)
+  const tarjetas = opciones.cuotas ? tarjetasPara(tabla, catalogo.cuotas) : []
+  const largo = planMasLargo(todosLosPlanes(tarjetas))
+  if (largo) {
+    const nombres = tarjetas.map((tarjeta) => tarjeta.nombre).filter(Boolean).join(', ')
+    renglones.push(`Hasta ${largo.cuotas} cuotas${nombres ? ` con ${nombres}` : ' con tarjeta de crédito'}.`)
+  }
+  if (opciones.pie.trim()) renglones.push('', opciones.pie.trim())
+  if (opciones.enlace && enlaceCatalogo) renglones.push('', `Fotos y cuotas: ${enlaceCatalogo}`)
+  // Sin renglones en blanco repetidos (por ejemplo, si no hay cuotas ni descuento).
+  return renglones.join('\n').replace(/\n{3,}/g, '\n\n').trim()
+}
+
+// Enlace que abre WhatsApp con un texto ya escrito, para elegir a quien
+// mandarselo (sin numero fijo, a diferencia de enlaceWhatsApp).
+export function enlaceCompartir(texto) {
+  return `https://wa.me/?text=${encodeURIComponent(texto)}`
 }
 
 // --- Solo para el panel ------------------------------------------------------

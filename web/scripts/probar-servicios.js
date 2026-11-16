@@ -28,7 +28,8 @@ import { firmaATexto, hayFirma, marcarRestantes, problemaDeActa, revisionInicial
 import { nombreDeModelo } from '../src/servicios/texto.js'
 import { armarCombos, venderCombo } from '../src/servicios/combos.js'
 import { proveedoresDelLote } from '../src/servicios/stock.js'
-import { enlaceAccesorio, enlaceCelular, extraerImeis, fechaDeCompra, soloFecha } from '../src/formato.js'
+import { enlaceAccesorio, enlaceCelular, enlaceCompartir, extraerImeis, fechaDeCompra, soloFecha, textoDeLista } from '../src/formato.js'
+import { LISTA_DE_FABRICA, opcionesDeLista, problemaDeLista } from '../src/servicios/lista.js'
 import { comprasPorDia } from '../src/servicios/stock.js'
 import { diaDeLaCompraMasNueva, fechaParaLaBase, problemaDeDia } from '../src/servicios/fechas.js'
 import { descuentoPara, descuentosDe, precioEnEfectivo, problemaDeDescuento } from '../src/servicios/efectivo.js'
@@ -943,6 +944,59 @@ probar('el mensaje de WhatsApp lleva el precio con tarjeta y en efectivo', () =>
   assert.ok(texto(enlaceAccesorio(funda, 2, 1000, 20)).endsWith('Precio por unidad con tarjeta: $ 10.000\nEn efectivo: $ 8.000 c/u\nTotal: $ 20.000 (en efectivo $ 16.000)'))
   assert.ok(texto(enlaceAccesorio(funda, 3, 1000, 20)).endsWith('Precio por unidad con tarjeta: $ 7.000\nEn efectivo: $ 5.600 c/u\nTotal: $ 21.000 (en efectivo $ 16.800)'))
   assert.ok(texto(enlaceAccesorio(funda, 3, 1000)).endsWith('Precio por unidad: $ 7.000\nTotal: $ 21.000'))
+})
+probar('la lista para compartir lleva cada familia con sus precios, las cuotas y el catalogo', () => {
+  const catalogo = armarCatalogo({
+    cotizacion: 1000,
+    celulares: [
+      { clave: 'A', modelo: 'IPHONE 13', capacidad: '128GB', color: 'NEGRO', bateria: '84%', detalles: 'DETALLES ESTÉTICOS', cantidad: 1, suma_precio: 400 },
+      { clave: 'B', modelo: 'IPHONE 14 PRO', capacidad: '256GB', color: '', bateria: '', detalles: '', cantidad: 2, suma_precio: 1400 },
+    ],
+    accesorios: [{ clave: 'C', tipo: 'FUNDA', modelo: 'SILICONA', color: 'NEGRO', detalles: '', cantidad: 3, suma_precio: 30 }],
+    escalas: [],
+    combos: [],
+    cuotas: { leyenda: '', accesorios: false, tarjetas: TARJETAS },
+    efectivo: { celulares: 10, accesorios: 0 },
+  })
+  assert.equal(
+    textoDeLista(catalogo, 'celulares', 'https://import-salta.vercel.app/'),
+    [
+      '*Import Salta* · Lista de precios',
+      '',
+      '*iPhone 13*',
+      '• 128GB · NEGRO · batería 84% · DETALLES ESTÉTICOS: $ 400.000 (efectivo $ 360.000)',
+      '',
+      '*iPhone 14 PRO*',
+      '• 256GB: $ 700.000 (efectivo $ 630.000)',
+      '',
+      'Precios con tarjeta. En efectivo, 10 % de descuento.',
+      'Hasta 12 cuotas con Visa / Mastercard, Naranja.',
+      '',
+      'Fotos y cuotas: https://import-salta.vercel.app/',
+    ].join('\n'),
+  )
+  // Accesorios: sin descuento ni cuotas (el dueno no las muestra en accesorios).
+  assert.equal(textoDeLista(catalogo, 'accesorios'), '*Import Salta* · Lista de precios\n\n*FUNDA*\n• SILICONA · NEGRO: $ 10.000')
+  assert.ok(enlaceCompartir('Hola & chau').startsWith('https://wa.me/?text=Hola%20%26%20chau'))
+
+  // Con lo que elige el dueno en Ajustes: sus textos y solo algunos datos.
+  const elegida = {
+    ...catalogo,
+    lista: opcionesDeLista({ encabezado: '📱 *Ofertas de hoy*', pie: 'Escribinos para reservar 👇', bateria: false, detalles: false, efectivo: false, cuotas: false, enlace: false }),
+  }
+  assert.equal(
+    textoDeLista(elegida, 'celulares', 'https://import-salta.vercel.app/'),
+    '📱 *Ofertas de hoy*\n\n*iPhone 13*\n• 128GB · NEGRO: $ 400.000\n\n*iPhone 14 PRO*\n• 256GB: $ 700.000\n\nEscribinos para reservar 👇',
+  )
+  // Sin texto de arriba arranca directo con la lista.
+  assert.ok(textoDeLista({ ...elegida, lista: { ...elegida.lista, encabezado: ' ' } }, 'celulares').startsWith('*iPhone 13*'))
+})
+probar('las opciones de la lista completan lo que falta con lo de fabrica', () => {
+  assert.deepEqual(opcionesDeLista(undefined), LISTA_DE_FABRICA)
+  assert.deepEqual(opcionesDeLista({ pie: 'Hola', color: false, bateria: 'no' }), { ...LISTA_DE_FABRICA, pie: 'Hola', color: false })
+  assert.equal(problemaDeLista(LISTA_DE_FABRICA), '')
+  assert.equal(problemaDeLista({ ...LISTA_DE_FABRICA, encabezado: 'x'.repeat(301) }), 'El texto de arriba es muy largo (hasta 300 letras).')
+  assert.equal(problemaDeLista({ ...LISTA_DE_FABRICA, pie: 'x'.repeat(501) }), 'El texto de abajo es muy largo (hasta 500 letras).')
 })
 
 console.log(process.exitCode ? '\nHay pruebas que fallan.' : `\nLas ${pasaron} pruebas pasaron.`)

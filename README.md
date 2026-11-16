@@ -5,9 +5,11 @@ sobre la misma base:
 
 - **Catálogo público** (`/`): fondo negro, el logo aparece al entrar y el stock va en una
   tabla por modelo (capacidad y color, batería, precio en pesos con tarjeta y en efectivo,
-  y WhatsApp), con la mejor
-  cuota debajo de cada equipo y *Ver cuotas* para ver todos los planes. Cada consulta va
-  a WhatsApp.
+  y WhatsApp), con *Ver cuotas* debajo de cada equipo para ver las cuotas de cada tarjeta.
+  Cada consulta va a WhatsApp, y el botón *Compartir lista por WhatsApp* arma la lista
+  completa de la pestaña (celulares o accesorios) con sus precios, deja retocarla y la
+  manda a quien se elija. En `Ajustes` el dueño elige el texto de arriba, el de abajo y
+  qué datos lleva (color, batería, detalles, efectivo, cuotas y link del catálogo).
 - **Panel de administración** (`/admin`): solo para el dueño y quienes atienden.
 
 Parte del sistema de iPhone DOBB (stock con IMEI, ventas, permutas, revendedores, señas,
@@ -20,8 +22,8 @@ Import Salta:
   y al vender aparece el botón *Efectivo*.
 - **Tarjetas y cuotas**: cada tarjeta le cuesta distinto al local, así que en `Ajustes`
   el dueño carga cada una (o un grupo: *Visa / Mastercard*, *Naranja*...) con su recargo
-  en 1 pago y sus planes (3, 6, 9, 12...) con el recargo de cada uno. El catálogo muestra
-  la mejor cuota en cada equipo y, en *Ver cuotas*, las de cada tarjeta. Se cobra con el
+  en 1 pago y sus planes (3, 6, 9, 12...) con el recargo de cada uno. El catálogo muestra,
+  en *Ver cuotas* de cada equipo, las cuotas de cada tarjeta. Se cobra con el
   posnet del local o mandándole un QR al cliente: al vender se elige *Tarjeta o QR*, la
   tarjeta y las cuotas, y el ticket y el historial de ventas dicen con qué tarjeta se pagó.
 - **Acta de entrega y garantía**: cada celular vendido lleva un acta con la revisión punto
