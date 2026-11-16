@@ -251,9 +251,8 @@ function AvisoCuotas({ cuotas }) {
           {largoSinInteres && <span className="text-verde"> · {largoSinInteres.cuotas} sin interés</span>}
         </p>
         {nombres && <p className="text-xs break-words text-neutral-600">{nombres}</p>}
-        <p className="text-xs break-words text-neutral-500">
-          {cuotas.leyenda || 'Con tarjeta de crédito bancaria.'}
-        </p>
+        {/* El texto de Ajustes, solo si el dueno escribio uno: vacio no se muestra nada. */}
+        {cuotas.leyenda && <p className="text-xs break-words text-neutral-500">{cuotas.leyenda}</p>}
       </div>
     </div>
   )

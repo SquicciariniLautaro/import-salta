@@ -515,7 +515,7 @@ function SeccionCuotas({ tarjetas, alCambiar, leyenda, alCambiarLeyenda, accesor
       {problema && <p className="text-xs text-red-700">{problema}</p>}
       <label className="etiqueta">
         Texto que acompaña las cuotas en el catálogo
-        <input className="campo" value={leyenda} onChange={alCambiarLeyenda} maxLength={200} placeholder="Con tarjeta de crédito bancaria" />
+        <input className="campo" value={leyenda} onChange={alCambiarLeyenda} maxLength={200} placeholder="Opcional: vacío no se muestra nada" />
       </label>
       <label className="flex items-start gap-2 text-sm">
         <input type="checkbox" className="mt-0.5 h-4 w-4 accent-black" checked={accesorios} onChange={(evento) => alCambiarAccesorios(evento.target.checked)} />
