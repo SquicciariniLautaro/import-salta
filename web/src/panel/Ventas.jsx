@@ -208,6 +208,7 @@ export default function PestanaVentas() {
                     {renglon.detalle && ` · ${renglon.detalle}`}
                     {renglon.clase === 'venta' && renglon.comprador && ` · ${renglon.comprador}`}
                     {renglon.medio && ` · ${nombreDeMedio(renglon.medio)}`}
+                    {renglon.tarjeta && ` (${renglon.tarjeta})`}
                     {renglon.cuotas > 1 && ` en ${renglon.cuotas} cuotas`}
                     {renglon.permuta_usd !== null && renglon.clase === 'venta' && ' · con permuta'}
                   </p>
@@ -438,6 +439,7 @@ function DatosDeComprobante({ comprobante, total, alCerrar }) {
     efectivo: comprobante.efectivo_ars,
     cuotas: comprobante.cuotas || 1,
     recargo: Number(comprobante.recargo_pct) || 0,
+    tarjeta: comprobante.tarjeta || '',
   })
   const [ocupado, ejecutar] = useAccion()
 

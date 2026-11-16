@@ -49,10 +49,17 @@ insert into public.escalas_precio (clave, desde, moneda, precio) values
   ('FUNDA|SILICONA IPHONE 13|NEGRO|', 3,  'ars', 5000),
   ('FUNDA|SILICONA IPHONE 13|NEGRO|', 10, 'usd', 4);
 
--- Planes de cuotas de ejemplo, para ver como quedan en el catalogo. Los
--- recargos son inventados: el dueno carga los suyos en Ajustes.
+-- Tarjetas de ejemplo con sus cuotas, para ver como quedan en el catalogo y
+-- al cobrar. Los recargos son inventados: el dueno carga los suyos en Ajustes.
+-- "cuotas_planes" es la copia de los planes de la primera tarjeta.
 update public.configuracion
-   set cuotas_planes = '[{"cuotas": 3, "recargo": 0}, {"cuotas": 6, "recargo": 15}, {"cuotas": 9, "recargo": 25}, {"cuotas": 12, "recargo": 35}]'::jsonb
+   set cuotas_planes = '[{"cuotas": 3, "recargo": 0}, {"cuotas": 6, "recargo": 15}, {"cuotas": 9, "recargo": 25}, {"cuotas": 12, "recargo": 35}]'::jsonb,
+       tarjetas = '[
+         {"nombre": "Visa / Mastercard", "un_pago": 0,
+          "planes": [{"cuotas": 3, "recargo": 0}, {"cuotas": 6, "recargo": 15}, {"cuotas": 9, "recargo": 25}, {"cuotas": 12, "recargo": 35}]},
+         {"nombre": "Naranja", "un_pago": 0,
+          "planes": [{"cuotas": 3, "recargo": 24}, {"cuotas": 6, "recargo": 43}]}
+       ]'::jsonb
  where id = 1;
 
 -- Descuento pagando en efectivo, para ver los dos precios en el catalogo.

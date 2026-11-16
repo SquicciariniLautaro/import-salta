@@ -63,6 +63,8 @@ export function armarVentas(vendidas, cuentasAbiertas = []) {
           medio: comprobante && !unidad.revendedor ? comprobante.medio || '' : '',
           // Con tarjeta: en cuantas cuotas (1 = un pago).
           cuotas: comprobante?.medio === 'tarjeta' ? comprobante.cuotas || 1 : null,
+          // Con tarjeta: con cual (vacio en las ventas de antes de elegirla).
+          tarjeta: comprobante?.medio === 'tarjeta' ? comprobante.tarjeta || '' : '',
           fecha: unidad.fecha_venta,
           descripcion: describir(unidad, tabla),
           detalle: [unidad.bateria, unidad.detalles].filter(Boolean).join(' · '),
@@ -157,7 +159,7 @@ export function aCsv(renglones) {
       renglon.cobrado_ars,
       renglon.ganancia_usd.toFixed(2),
       renglon.comprador,
-      nombreDeMedio(renglon.medio),
+      [nombreDeMedio(renglon.medio), renglon.tarjeta, renglon.cuotas > 1 ? `${renglon.cuotas} cuotas` : ''].filter(Boolean).join(' - '),
     ])
   }
   return filas.map((fila) => fila.map(celda).join(';')).join('\r\n')

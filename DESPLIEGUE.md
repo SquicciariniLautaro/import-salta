@@ -49,6 +49,7 @@ traen lo que pidió Import Salta.
 | 11 | `20261028000000_descuento_efectivo.sql` | **Import Salta**: descuento pagando en efectivo (el catálogo muestra el precio con tarjeta y en efectivo) y el texto de las cuotas sin "en el local con posnet". |
 | 12 | `20261029000000_fecha_de_compra.sql` | **Import Salta**: el historial de ventas trae la fecha de compra de cada unidad vendida. |
 | 13 | `20261031000000_fechas_a_mano.sql` | **Import Salta**: elegir la fecha de compra al ingresar stock y la de venta al vender, y corregirlas después. |
+| 14 | `20261116000000_tarjetas.sql` | **Import Salta**: cada tarjeta (Visa / Mastercard, Naranja...) con su recargo en 1 pago y sus propias cuotas; al cobrar se elige la tarjeta y la venta guarda con cuál se pagó. Las cuotas que ya estaban cargadas pasan a "Visa / Mastercard" y se suma Naranja (3 cuotas 24 %, 6 cuotas 43 %). |
 
 Para cada una:
 

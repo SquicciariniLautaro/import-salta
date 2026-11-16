@@ -5,8 +5,9 @@
 //   * Los dias de garantia que se proponen al vender o entregar un arreglo.
 //   * El descuento pagando en efectivo (uno para celulares y otro para
 //     accesorios): el catalogo muestra el precio con tarjeta y en efectivo.
-//   * Los planes de cuotas con tarjeta (cuantas cuotas y con que recargo),
-//     que se muestran en el catalogo y se eligen al cobrar.
+//   * Las tarjetas (Visa / Mastercard, Naranja...), cada una con su recargo
+//     en 1 pago y sus planes de cuotas (cuantas cuotas y con que recargo).
+//     Se muestran en el catalogo y se eligen al cobrar.
 //   * La revision del acta de entrega y garantia: que puntos se revisan con
 //     el cliente y las condiciones que firma.
 //   * Desde cuantas unidades avisar que queda poco stock.
@@ -20,7 +21,7 @@ import { useState } from 'react'
 import toast from 'react-hot-toast'
 import { agregarOpcion, guardarAjustes, quitarOpcion } from '../apiAdmin.js'
 import { armarComprobante, paginaDeTicket } from '../servicios/comprobante.js'
-import { cuotasDe, ordenarPlanes, problemaDePlanes, textoDeRecargo } from '../servicios/cuotas.js'
+import { TARJETAS_MAXIMAS, cuotasDe, ordenarPlanes, problemaDeTarjetas, tarjetasDe, textoDeRecargo, totalConRecargo } from '../servicios/cuotas.js'
 import { DESCUENTO_MAXIMO, descuentosDe, precioEnEfectivo, problemaDeDescuento } from '../servicios/efectivo.js'
 import { pesos } from '../formato.js'
 import { ticketDeVenta } from '../servicios/escpos.js'
@@ -48,8 +49,11 @@ const descuentosEnTexto = (configuracion) => {
   return { celulares: String(celulares), accesorios: String(accesorios) }
 }
 
-// Los planes como los trae la base, para comparar con lo que se esta editando.
-const planesDe = (configuracion) => (configuracion.cuotas_planes || []).map((plan) => ({ cuotas: plan.cuotas, recargo: Number(plan.recargo) }))
+// Las tarjetas como las guarda la base (los planes en orden), para guardar y
+// para comparar con lo que trae.
+const tarjetasOrdenadas = (tarjetas) => tarjetas.map((tarjeta) => ({ ...tarjeta, planes: ordenarPlanes(tarjeta.planes) }))
+// Atajos para sumar una tarjeta.
+const TARJETAS_COMUNES = ['Visa / Mastercard', 'Naranja', 'American Express', 'Cabal']
 const NUMEROS = [
   'garantia_dias_celulares', 'garantia_dias_accesorios', 'garantia_dias_servicio',
   'aviso_celulares', 'aviso_accesorios',
@@ -96,8 +100,9 @@ export default function PestanaAjustes() {
   )
   // Sin la ultima migracion la base no lo trae: se toma como prendido.
   const [duplicado, setDuplicado] = useState(configuracion.ticket_duplicado ?? true)
-  // Los planes se editan como numeros; un campo vacio queda en null hasta que se escribe.
-  const [planes, setPlanes] = useState(() => planesDe(configuracion))
+  // Las tarjetas con sus planes. Los recargos se editan como numeros; un campo
+  // vacio queda en null hasta que se escribe.
+  const [tarjetas, setTarjetas] = useState(() => tarjetasDe(configuracion))
   const [cuotasAccesorios, setCuotasAccesorios] = useState(Boolean(configuracion.cuotas_accesorios))
   // Los descuentos en efectivo, como texto mientras se escriben. Sin la
   // migracion del descuento la base no los trae: arrancan en 0.
@@ -113,11 +118,11 @@ export default function PestanaAjustes() {
     TEXTOS.some((nombre) => limpio(campos[nombre]) !== limpio(configuracion[nombre])) ||
     NUMEROS.some((nombre) => Number(campos[nombre]) !== configuracion[nombre]) ||
     duplicado !== (configuracion.ticket_duplicado ?? true) ||
-    JSON.stringify(ordenarPlanes(planes)) !== JSON.stringify(planesDe(configuracion)) ||
+    JSON.stringify(tarjetasOrdenadas(tarjetas)) !== JSON.stringify(tarjetasDe(configuracion)) ||
     cuotasAccesorios !== Boolean(configuracion.cuotas_accesorios) ||
     JSON.stringify(descuentos) !== JSON.stringify(descuentosEnTexto(configuracion)) ||
     JSON.stringify(puntos) !== JSON.stringify(configuracion.revision_puntos || [])
-  const problemaCuotas = problemaDePlanes(planes)
+  const problemaCuotas = problemaDeTarjetas(tarjetas)
   const problemaEfectivo = problemaDeDescuento(descuentos.celulares) || problemaDeDescuento(descuentos.accesorios)
   const falta =
     !campos.negocio_nombre.trim() || NUMEROS.some((nombre) => campos[nombre] === '' || Number(campos[nombre]) < 0) ||
@@ -129,7 +134,7 @@ export default function PestanaAjustes() {
     ...Object.fromEntries(TEXTOS.map((nombre) => [nombre, campos[nombre]])),
     ...Object.fromEntries(NUMEROS.map((nombre) => [nombre, Math.round(Number(campos[nombre]))])),
     ticket_duplicado: duplicado,
-    cuotas_planes: ordenarPlanes(planes),
+    tarjetas: tarjetasOrdenadas(tarjetas),
     cuotas_accesorios: cuotasAccesorios,
     descuento_efectivo_celulares: Number(descuentos.celulares),
     descuento_efectivo_accesorios: Number(descuentos.accesorios),
@@ -227,8 +232,8 @@ export default function PestanaAjustes() {
         <SeccionEfectivo descuentos={descuentos} alCambiar={setDescuentos} problema={problemaEfectivo} />
 
         <SeccionCuotas
-          planes={planes}
-          alCambiar={setPlanes}
+          tarjetas={tarjetas}
+          alCambiar={setTarjetas}
           leyenda={campos.cuotas_leyenda}
           alCambiarLeyenda={fijar('cuotas_leyenda')}
           accesorios={cuotasAccesorios}
@@ -462,20 +467,119 @@ function SeccionEfectivo({ descuentos, alCambiar, problema }) {
   )
 }
 
-// Los planes de cuotas: un renglon por plan con sus cuotas y su recargo, y un
-// ejemplo de cuanto queda cada cuota. Se guardan con el boton de abajo.
-function SeccionCuotas({ planes, alCambiar, leyenda, alCambiarLeyenda, accesorios, alCambiarAccesorios, problema }) {
-  const cambiar = (posicion, cambios) => alCambiar(planes.map((plan, indice) => (indice === posicion ? { ...plan, ...cambios } : plan)))
-  const sumar = (cuotas) => alCambiar(ordenarPlanes([...planes, { cuotas, recargo: 0 }]))
-  const numero = (texto) => (texto === '' ? null : Number(texto))
+// Las tarjetas: cada una con su nombre, su recargo en 1 pago y sus planes de
+// cuotas. Se guardan con el boton de abajo.
+function SeccionCuotas({ tarjetas, alCambiar, leyenda, alCambiarLeyenda, accesorios, alCambiarAccesorios, problema }) {
+  const cambiar = (posicion, cambios) => alCambiar(tarjetas.map((tarjeta, indice) => (indice === posicion ? { ...tarjeta, ...cambios } : tarjeta)))
+  const nombres = new Set(tarjetas.map((tarjeta) => String(tarjeta.nombre ?? '').trim().toUpperCase()))
+  const sumar = (nombre) => alCambiar([...tarjetas, { nombre, un_pago: 0, planes: [] }])
+  // Cambiar el orden: la primera es la que se propone al cobrar.
+  function subir(posicion) {
+    const nuevas = [...tarjetas]
+    ;[nuevas[posicion - 1], nuevas[posicion]] = [nuevas[posicion], nuevas[posicion - 1]]
+    alCambiar(nuevas)
+  }
 
   return (
     <section className="tarjeta space-y-3 p-3">
       <Titulo
-        texto="Cuotas con tarjeta"
-        ayuda="Se muestran en el catálogo, en cada equipo, y se eligen al cobrar con tarjeta o QR. El recargo se suma al precio con tarjeta: 0 % es sin interés."
+        texto="Tarjetas y cuotas"
+        ayuda="Cada tarjeta (o grupo de tarjetas que cuestan lo mismo) con su recargo en 1 pago y sus cuotas. Se muestran en el catálogo y se eligen al cobrar con tarjeta o QR. El recargo se suma al precio con tarjeta: 0 % es sin interés."
       />
-      {planes.length === 0 && <p className="rounded-lg bg-neutral-100 px-3 py-2 text-xs text-neutral-600">Sin planes: el catálogo no muestra cuotas.</p>}
+      {tarjetas.length === 0 && (
+        <p className="rounded-lg bg-neutral-100 px-3 py-2 text-xs text-neutral-600">Sin tarjetas: el catálogo no muestra cuotas y al cobrar con tarjeta solo hay 1 pago.</p>
+      )}
+      <ul className="space-y-3">
+        {tarjetas.map((tarjeta, posicion) => (
+          <li key={posicion}>
+            <EditorDeTarjeta
+              tarjeta={tarjeta}
+              primera={posicion === 0}
+              alCambiar={(cambios) => cambiar(posicion, cambios)}
+              alSubir={posicion > 0 ? () => subir(posicion) : null}
+              alQuitar={() => alCambiar(tarjetas.filter((_, indice) => indice !== posicion))}
+            />
+          </li>
+        ))}
+      </ul>
+      <div className="flex flex-wrap gap-1.5">
+        {TARJETAS_COMUNES.filter((nombre) => !nombres.has(nombre.toUpperCase())).map((nombre) => (
+          <button key={nombre} type="button" className="boton boton-claro boton-chico" disabled={tarjetas.length >= TARJETAS_MAXIMAS} onClick={() => sumar(nombre)}>
+            + {nombre}
+          </button>
+        ))}
+        <button type="button" className="boton boton-claro boton-chico" disabled={tarjetas.length >= TARJETAS_MAXIMAS} onClick={() => sumar('')}>
+          + Otra tarjeta
+        </button>
+      </div>
+      {problema && <p className="text-xs text-red-700">{problema}</p>}
+      <label className="etiqueta">
+        Texto que acompaña las cuotas en el catálogo
+        <input className="campo" value={leyenda} onChange={alCambiarLeyenda} maxLength={200} placeholder="Con tarjeta de crédito bancaria" />
+      </label>
+      <label className="flex items-start gap-2 text-sm">
+        <input type="checkbox" className="mt-0.5 h-4 w-4 accent-black" checked={accesorios} onChange={(evento) => alCambiarAccesorios(evento.target.checked)} />
+        <span>
+          Mostrar las cuotas también en los accesorios
+          <span className="block text-xs text-neutral-500">Si no, solo aparecen en los celulares.</span>
+        </span>
+      </label>
+    </section>
+  )
+}
+
+// Una tarjeta en Ajustes: su nombre, el recargo en 1 pago y un renglon por
+// plan con sus cuotas y su recargo, con un ejemplo de cuanto queda cada cuota.
+function EditorDeTarjeta({ tarjeta, primera, alCambiar, alSubir, alQuitar }) {
+  const planes = tarjeta.planes
+  const cambiarPlan = (posicion, cambios) => alCambiar({ planes: planes.map((plan, indice) => (indice === posicion ? { ...plan, ...cambios } : plan)) })
+  const sumar = (cuotas) => alCambiar({ planes: ordenarPlanes([...planes, { cuotas, recargo: 0 }]) })
+  const numero = (texto) => (texto === '' ? null : Number(texto))
+  const nombre = String(tarjeta.nombre ?? '').trim() || 'esta tarjeta'
+
+  return (
+    <div className="space-y-2.5 rounded-lg border border-neutral-300 p-2.5">
+      <div className="grid grid-cols-[1fr_auto] items-end gap-2">
+        <label className="etiqueta">
+          Tarjeta{primera && <span className="font-normal text-neutral-500"> · la que se propone al cobrar</span>}
+          <input
+            className="campo"
+            value={tarjeta.nombre}
+            onChange={(evento) => alCambiar({ nombre: evento.target.value })}
+            maxLength={40}
+            placeholder="Visa / Mastercard"
+          />
+        </label>
+        <div className="flex gap-1">
+          {alSubir && (
+            <button type="button" className="boton boton-claro px-2.5" onClick={alSubir} aria-label={`Subir ${nombre}`} title="Subir">
+              ↑
+            </button>
+          )}
+          <button type="button" className="boton boton-claro px-2.5" onClick={alQuitar} aria-label={`Quitar ${nombre}`}>
+            Quitar
+          </button>
+        </div>
+      </div>
+      <label className="etiqueta">
+        Recargo en 1 pago (%)
+        <input
+          type="number"
+          inputMode="decimal"
+          min="0"
+          max="300"
+          step="0.01"
+          className="campo"
+          value={tarjeta.un_pago ?? ''}
+          onChange={(evento) => alCambiar({ un_pago: numero(evento.target.value) })}
+        />
+        {tarjeta.un_pago > 0 && (
+          <span className="mt-0.5 block text-[11px] font-normal text-neutral-500">
+            Un equipo de {pesos(PRECIO_DE_EJEMPLO)} queda en {pesos(totalConRecargo(PRECIO_DE_EJEMPLO, tarjeta.un_pago))} en 1 pago
+          </span>
+        )}
+      </label>
+      {planes.length === 0 && <p className="rounded-lg bg-neutral-100 px-3 py-2 text-xs text-neutral-600">Sin cuotas: con {nombre} solo se cobra en 1 pago.</p>}
       <ul className="space-y-2">
         {planes.map((plan, posicion) => {
           const [ejemplo] = plan.cuotas >= 2 && plan.recargo !== null ? cuotasDe(PRECIO_DE_EJEMPLO, [plan]) : []
@@ -491,7 +595,7 @@ function SeccionCuotas({ planes, alCambiar, leyenda, alCambiarLeyenda, accesorio
                     max="48"
                     className="campo"
                     value={plan.cuotas ?? ''}
-                    onChange={(evento) => cambiar(posicion, { cuotas: numero(evento.target.value) })}
+                    onChange={(evento) => cambiarPlan(posicion, { cuotas: numero(evento.target.value) })}
                   />
                 </label>
                 <label className="etiqueta">
@@ -504,13 +608,13 @@ function SeccionCuotas({ planes, alCambiar, leyenda, alCambiarLeyenda, accesorio
                     step="0.01"
                     className="campo"
                     value={plan.recargo ?? ''}
-                    onChange={(evento) => cambiar(posicion, { recargo: numero(evento.target.value) })}
+                    onChange={(evento) => cambiarPlan(posicion, { recargo: numero(evento.target.value) })}
                   />
                 </label>
                 <button
                   type="button"
                   className="boton boton-claro px-2.5"
-                  onClick={() => alCambiar(planes.filter((_, indice) => indice !== posicion))}
+                  onClick={() => alCambiar({ planes: planes.filter((_, indice) => indice !== posicion) })}
                   aria-label={`Quitar el plan de ${plan.cuotas} cuotas`}
                 >
                   Quitar
@@ -539,19 +643,7 @@ function SeccionCuotas({ planes, alCambiar, leyenda, alCambiarLeyenda, accesorio
           </button>
         ))}
       </div>
-      {problema && <p className="text-xs text-red-700">{problema}</p>}
-      <label className="etiqueta">
-        Texto que acompaña las cuotas en el catálogo
-        <input className="campo" value={leyenda} onChange={alCambiarLeyenda} maxLength={200} placeholder="Con tarjeta de crédito bancaria" />
-      </label>
-      <label className="flex items-start gap-2 text-sm">
-        <input type="checkbox" className="mt-0.5 h-4 w-4 accent-black" checked={accesorios} onChange={(evento) => alCambiarAccesorios(evento.target.checked)} />
-        <span>
-          Mostrar las cuotas también en los accesorios
-          <span className="block text-xs text-neutral-500">Si no, solo aparecen en los celulares.</span>
-        </span>
-      </label>
-    </section>
+    </div>
   )
 }
 

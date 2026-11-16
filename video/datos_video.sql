@@ -8,9 +8,16 @@
 -- Dolar de venta del ejemplo.
 update public.configuracion set cotizacion_dolar = 1575, cotizacion_costo = 1555 where id = 1;
 
--- Planes de cuotas de ejemplo.
+-- Tarjetas de ejemplo con sus cuotas ("cuotas_planes" es la copia de los
+-- planes de la primera).
 update public.configuracion
-   set cuotas_planes = '[{"cuotas": 3, "recargo": 0}, {"cuotas": 6, "recargo": 15}, {"cuotas": 9, "recargo": 25}, {"cuotas": 12, "recargo": 35}]'::jsonb
+   set cuotas_planes = '[{"cuotas": 3, "recargo": 0}, {"cuotas": 6, "recargo": 15}, {"cuotas": 9, "recargo": 25}, {"cuotas": 12, "recargo": 35}]'::jsonb,
+       tarjetas = '[
+         {"nombre": "Visa / Mastercard", "un_pago": 0,
+          "planes": [{"cuotas": 3, "recargo": 0}, {"cuotas": 6, "recargo": 15}, {"cuotas": 9, "recargo": 25}, {"cuotas": 12, "recargo": 35}]},
+         {"nombre": "Naranja", "un_pago": 0,
+          "planes": [{"cuotas": 3, "recargo": 24}, {"cuotas": 6, "recargo": 43}]}
+       ]'::jsonb
  where id = 1;
 
 -- Celulares, con costo y precio de ejemplo en dolares.

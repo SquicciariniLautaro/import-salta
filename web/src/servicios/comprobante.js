@@ -33,12 +33,13 @@ export function repartirCobro({ medio, efectivo_ars }, total) {
 
 // --- Formularios de cobro ----------------------------------------------------
 // En los formularios el cobro se maneja como { medio, efectivo, cuotas,
-// recargo }: "efectivo" es lo que se escribio en el campo, y solo cuenta si
-// el medio es "mixto"; "cuotas" y "recargo" (%), solo con tarjeta.
+// recargo, tarjeta }: "efectivo" es lo que se escribio en el campo, y solo
+// cuenta si el medio es "mixto"; "cuotas", "recargo" (%) y "tarjeta" (el
+// nombre, como en Ajustes), solo con tarjeta.
 
-export const COBRO_VACIO = { medio: 'efectivo', efectivo: null, cuotas: 1, recargo: 0 }
+export const COBRO_VACIO = { medio: 'efectivo', efectivo: null, cuotas: 1, recargo: 0, tarjeta: '' }
 
-// Lo que espera la base: { medio, efectivo_ars, cuotas, recargo_pct }.
+// Lo que espera la base: { medio, efectivo_ars, cuotas, recargo_pct, tarjeta }.
 export function cobroParaLaBase(cobro) {
   const conTarjeta = cobro.medio === 'tarjeta'
   return {
@@ -46,16 +47,24 @@ export function cobroParaLaBase(cobro) {
     efectivo_ars: cobro.medio === 'mixto' ? cobro.efectivo : null,
     cuotas: conTarjeta ? cobro.cuotas || 1 : null,
     recargo_pct: conTarjeta ? cobro.recargo || 0 : null,
+    tarjeta: conTarjeta ? cobro.tarjeta || null : null,
   }
 }
 
 // Lo que se cobra (posnet o QR) al cobrar "monto" con tarjeta: el monto mas el
-// recargo de las cuotas, y cuanto queda cada cuota. null si no es con tarjeta.
+// recargo de las cuotas, y cuanto queda cada cuota. "nombre" es la tarjeta
+// (vacio en las ventas de antes de elegirla). null si no es con tarjeta.
 export function pagoConTarjeta(cobro, monto) {
   if (cobro.medio !== 'tarjeta') return null
   const cuotas = cobro.cuotas || 1
   const total = totalConRecargo(monto, cobro.recargo ?? cobro.recargo_pct ?? 0)
-  return { cuotas, recargo: Number(cobro.recargo ?? cobro.recargo_pct ?? 0), total_ars: total, cuota_ars: Math.round(total / cuotas) }
+  return {
+    nombre: cobro.tarjeta || '',
+    cuotas,
+    recargo: Number(cobro.recargo ?? cobro.recargo_pct ?? 0),
+    total_ars: total,
+    cuota_ars: Math.round(total / cuotas),
+  }
 }
 
 // true si falta decir cuanto fue en efectivo, o si es mas que el total.
@@ -124,10 +133,11 @@ export function armarComprobante(datos) {
   } else {
     const partes = repartirCobro(datos, total - debe)
     const enCuotas = datos.medio === 'tarjeta' && datos.cuotas > 1
+    const tarjeta = nombreDeTarjeta(datos.tarjeta)
     pagos = [
       { nombre: 'Efectivo', monto_ars: partes.efectivo_ars },
       {
-        nombre: datos.medio === 'tarjeta' ? (enCuotas ? `Tarjeta, ${datos.cuotas} cuotas` : 'Tarjeta, 1 pago') : 'Transferencia',
+        nombre: datos.medio === 'tarjeta' ? (enCuotas ? `${tarjeta}, ${datos.cuotas} cuotas` : `${tarjeta}, 1 pago`) : 'Transferencia',
         monto_ars: partes.transferencia_ars,
       },
     ].filter((pago) => pago.monto_ars !== 0)
@@ -160,14 +170,18 @@ export function armarComprobante(datos) {
 // que queda debiendo pasa a la cuenta del cliente y se cobra despues; la caja
 // ve solo lo que se pago en el momento.
 
+// "Tarjeta Naranja", o "Tarjeta" si no se sabe cual (ventas de antes).
+export const nombreDeTarjeta = (nombre) => (nombre ? `Tarjeta ${nombre}` : 'Tarjeta')
+
 // Lo que dice el ticket de un pago con tarjeta (ver pagoConTarjeta):
-// "Tarjeta: 6 cuotas de $ 112.500 (total $ 675.000, recargo 12,5 %)".
+// "Tarjeta Naranja: 6 cuotas de $ 112.500 (total $ 675.000, recargo 12,5 %)".
 export function textoDeTarjeta(tarjeta) {
+  const titulo = nombreDeTarjeta(tarjeta.nombre)
   const recargo = tarjeta.recargo > 0 ? `recargo ${textoDeRecargo(tarjeta.recargo)}` : ''
-  if (tarjeta.cuotas <= 1) return `Tarjeta: 1 pago de ${pesos(tarjeta.total_ars)}${recargo ? ` (${recargo})` : ''}`
+  if (tarjeta.cuotas <= 1) return `${titulo}: 1 pago de ${pesos(tarjeta.total_ars)}${recargo ? ` (${recargo})` : ''}`
   return recargo
-    ? `Tarjeta: ${tarjeta.cuotas} cuotas de ${pesos(tarjeta.cuota_ars)} (total ${pesos(tarjeta.total_ars)}, ${recargo})`
-    : `Tarjeta: ${tarjeta.cuotas} cuotas sin interés de ${pesos(tarjeta.cuota_ars)}`
+    ? `${titulo}: ${tarjeta.cuotas} cuotas de ${pesos(tarjeta.cuota_ars)} (total ${pesos(tarjeta.total_ars)}, ${recargo})`
+    : `${titulo}: ${tarjeta.cuotas} cuotas sin interés de ${pesos(tarjeta.cuota_ars)}`
 }
 
 export const DEUDA_VACIA = { activa: false, monto: null }
