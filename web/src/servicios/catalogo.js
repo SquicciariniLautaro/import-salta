@@ -8,6 +8,7 @@ import { normalizar } from './texto.js'
 import { aDiezmilesimos, promedio } from './lotes.js'
 import { familiaDeCelular, marcaDe, ordenarLotes } from './orden.js'
 import { resolverTramo } from './precios.js'
+import { tarjetasDe } from './cuotas.js'
 
 export function armarCatalogo(crudo) {
   const cotizacion = Number(crudo.cotizacion)
@@ -70,8 +71,10 @@ export function armarCatalogo(crudo) {
     escalas: [],
   }))
 
-  // Los planes de cuotas con tarjeta que eligio el dueno (vacio = no se muestran).
+  // Las tarjetas con sus cuotas que eligio el dueno (vacio = no se muestran).
+  // "planes" son los de la primera tarjeta (los de antes de las tarjetas).
   const cuotas = {
+    tarjetas: tarjetasDe(crudo.cuotas),
     planes: crudo.cuotas?.planes || [],
     leyenda: crudo.cuotas?.leyenda || '',
     accesorios: Boolean(crudo.cuotas?.accesorios),

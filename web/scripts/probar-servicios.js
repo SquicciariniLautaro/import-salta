@@ -20,7 +20,10 @@ import {
   cobroParaLaBase, pagoConTarjeta, textoDeTarjeta,
 } from '../src/servicios/comprobante.js'
 import { armarGarantias, textoDeGarantia, venceGarantia } from '../src/servicios/garantias.js'
-import { cuotasDe, nombreDePlan, planMasLargo, planesPara, problemaDePlanes, textoDeRecargo } from '../src/servicios/cuotas.js'
+import {
+  cobroConTarjeta, cobroEnCuotas, cuotaDestacada, cuotasDe, nombreDePlan, opcionesDeTarjeta, planMasLargo, problemaDePlanes, problemaDeTarjetas,
+  tarjetasDe, tarjetasPara, textoDeRecargo, todosLosPlanes,
+} from '../src/servicios/cuotas.js'
 import { firmaATexto, hayFirma, marcarRestantes, problemaDeActa, revisionInicial } from '../src/servicios/actas.js'
 import { nombreDeModelo } from '../src/servicios/texto.js'
 import { armarCombos, venderCombo } from '../src/servicios/combos.js'
@@ -674,11 +677,68 @@ probar('los textos de los planes y el plan mas largo', () => {
   assert.equal(planMasLargo(PLANES).cuotas, 12)
   assert.equal(planMasLargo([]), null)
 })
+const TARJETAS = [
+  { nombre: 'Visa / Mastercard', un_pago: 0, planes: PLANES },
+  { nombre: 'Naranja', un_pago: 5, planes: [{ cuotas: 3, recargo: 12 }, { cuotas: 6, recargo: 24 }] },
+]
 probar('los accesorios muestran cuotas solo si el dueno lo eligio', () => {
-  assert.equal(planesPara('celulares', { planes: PLANES, accesorios: false }).length, 3)
-  assert.equal(planesPara('accesorios', { planes: PLANES, accesorios: false }).length, 0)
-  assert.equal(planesPara('accesorios', { planes: PLANES, accesorios: true }).length, 3)
-  assert.deepEqual(planesPara('celulares', undefined), [])
+  assert.equal(tarjetasPara('celulares', { tarjetas: TARJETAS, accesorios: false }).length, 2)
+  assert.equal(tarjetasPara('accesorios', { tarjetas: TARJETAS, accesorios: false }).length, 0)
+  assert.equal(tarjetasPara('accesorios', { tarjetas: TARJETAS, accesorios: true }).length, 2)
+  assert.deepEqual(tarjetasPara('celulares', undefined), [])
+  // Una tarjeta sin cuotas ni recargo en 1 pago no muestra nada.
+  assert.equal(tarjetasPara('celulares', { tarjetas: [...TARJETAS, { nombre: 'Débito', un_pago: 0, planes: [] }] }).length, 2)
+})
+probar('cada tarjeta trae sus cuotas; sin tarjetas, los planes de antes son una sola', () => {
+  // Los recargos llegan de la base como texto o numero: quedan como numeros.
+  assert.deepEqual(tarjetasDe({ tarjetas: [{ nombre: 'Naranja', un_pago: '5.00', planes: [{ cuotas: 3, recargo: '12.00' }] }] }), [
+    { nombre: 'Naranja', un_pago: 5, planes: [{ cuotas: 3, recargo: 12 }] },
+  ])
+  assert.deepEqual(tarjetasDe({ tarjetas: [], cuotas_planes: [{ cuotas: 3, recargo: 0 }] }), [{ nombre: '', un_pago: 0, planes: [{ cuotas: 3, recargo: 0 }] }])
+  assert.deepEqual(tarjetasDe({ planes: [] }), [])
+  assert.deepEqual(opcionesDeTarjeta(TARJETAS[1]).map((opcion) => [opcion.cuotas, opcion.recargo]), [[1, 5], [3, 12], [6, 24]])
+  assert.deepEqual(opcionesDeTarjeta(null), [{ cuotas: 1, recargo: 0 }])
+  assert.equal(planMasLargo(todosLosPlanes(TARJETAS)).cuotas, 12)
+})
+probar('el catalogo trae las tarjetas con sus cuotas', () => {
+  const crudo = { cotizacion: 1000, celulares: [], accesorios: [], escalas: [], combos: [] }
+  assert.deepEqual(armarCatalogo({ ...crudo, cuotas: { planes: PLANES, tarjetas: TARJETAS, leyenda: '', accesorios: false } }).cuotas.tarjetas, TARJETAS)
+  // Una base sin la migracion de las tarjetas: los planes son una sola tarjeta.
+  assert.deepEqual(armarCatalogo({ ...crudo, cuotas: { planes: PLANES } }).cuotas.tarjetas, [{ nombre: '', un_pago: 0, planes: PLANES }])
+})
+probar('el catalogo destaca la cuota sin interes mas larga de cualquier tarjeta', () => {
+  assert.deepEqual(cuotaDestacada(600000, TARJETAS), {
+    cuotas: 3, recargo: 0, total_ars: 600000, cuota_ars: 200000, sin_interes: true, tarjeta: 'Visa / Mastercard',
+  })
+  // Si otra tarjeta tiene mas cuotas sin interes, gana esa.
+  const conPromo = [TARJETAS[0], { ...TARJETAS[1], planes: [{ cuotas: 6, recargo: 0 }] }]
+  assert.equal(cuotaDestacada(600000, conPromo).tarjeta, 'Naranja')
+  // Sin cuotas sin interes, la mas larga.
+  const soloNaranja = cuotaDestacada(600000, [TARJETAS[1]])
+  assert.deepEqual([soloNaranja.cuotas, soloNaranja.tarjeta], [6, 'Naranja'])
+  assert.equal(cuotaDestacada(600000, []), null)
+})
+probar('al cobrar, la tarjeta elegida pone el recargo de sus cuotas', () => {
+  const cobro = { medio: 'tarjeta', efectivo: null, cuotas: 1, recargo: 0, tarjeta: '' }
+  // Naranja en 1 pago tiene 5 %.
+  assert.deepEqual(cobroConTarjeta(cobro, TARJETAS[1]), { ...cobro, tarjeta: 'Naranja', cuotas: 1, recargo: 5 })
+  // Con 6 cuotas elegidas y cambiando de tarjeta, quedan 6 con el recargo de la nueva.
+  const enSeis = cobroEnCuotas(cobroConTarjeta(cobro, TARJETAS[0]), TARJETAS[0], 6)
+  assert.deepEqual([enSeis.cuotas, enSeis.recargo], [6, 12.5])
+  assert.deepEqual(cobroConTarjeta(enSeis, TARJETAS[1]), { ...enSeis, tarjeta: 'Naranja', cuotas: 6, recargo: 24 })
+  // Si la nueva tarjeta no tiene esas cuotas, vuelve a 1 pago.
+  const enDoce = cobroEnCuotas(enSeis, TARJETAS[0], 12)
+  assert.deepEqual(cobroConTarjeta(enDoce, TARJETAS[1]), { ...enDoce, tarjeta: 'Naranja', cuotas: 1, recargo: 5 })
+})
+probar('las tarjetas que se editan en Ajustes siguen las reglas de la base', () => {
+  assert.equal(problemaDeTarjetas(TARJETAS), '')
+  assert.equal(problemaDeTarjetas([]), '')
+  assert.equal(problemaDeTarjetas([{ nombre: '  ', un_pago: 0, planes: [] }]), 'Escribí el nombre de cada tarjeta.')
+  assert.equal(problemaDeTarjetas([TARJETAS[1], { ...TARJETAS[1], nombre: 'naranja ' }]), 'La tarjeta naranja está repetida.')
+  assert.equal(problemaDeTarjetas([{ ...TARJETAS[1], un_pago: null }]), 'Naranja: el recargo en 1 pago va de 0 % a 300 %.')
+  assert.equal(problemaDeTarjetas([{ ...TARJETAS[1], planes: [{ cuotas: 1, recargo: 0 }] }]), 'Naranja: las cuotas van de 2 a 48.')
+  const nueve = Array.from({ length: 9 }, (_, numero) => ({ nombre: `T${numero}`, un_pago: 0, planes: [] }))
+  assert.equal(problemaDeTarjetas(nueve), 'Como máximo 8 tarjetas.')
 })
 probar('los planes que se editan en Ajustes siguen las reglas de la base', () => {
   assert.equal(problemaDePlanes(PLANES), '')
@@ -687,9 +747,15 @@ probar('los planes que se editan en Ajustes siguen las reglas de la base', () =>
   assert.equal(problemaDePlanes([{ cuotas: 3, recargo: 0 }, { cuotas: 3, recargo: 5 }]), 'El plan de 3 cuotas está repetido.')
 })
 probar('cobrar con tarjeta manda las cuotas a la base y el ticket dice cuanto queda cada una', () => {
-  assert.deepEqual(cobroParaLaBase({ medio: 'tarjeta', efectivo: 5, cuotas: 6, recargo: 12.5 }), { medio: 'tarjeta', efectivo_ars: null, cuotas: 6, recargo_pct: 12.5 })
-  assert.deepEqual(cobroParaLaBase({ medio: 'efectivo', efectivo: null, cuotas: 6, recargo: 12.5 }), { medio: 'efectivo', efectivo_ars: null, cuotas: null, recargo_pct: null })
-  assert.deepEqual(pagoConTarjeta({ medio: 'tarjeta', cuotas: 6, recargo: 12.5 }, 600000), { cuotas: 6, recargo: 12.5, total_ars: 675000, cuota_ars: 112500 })
+  assert.deepEqual(cobroParaLaBase({ medio: 'tarjeta', efectivo: 5, cuotas: 6, recargo: 12.5, tarjeta: 'Naranja' }), {
+    medio: 'tarjeta', efectivo_ars: null, cuotas: 6, recargo_pct: 12.5, tarjeta: 'Naranja',
+  })
+  assert.deepEqual(cobroParaLaBase({ medio: 'efectivo', efectivo: null, cuotas: 6, recargo: 12.5, tarjeta: 'Naranja' }), {
+    medio: 'efectivo', efectivo_ars: null, cuotas: null, recargo_pct: null, tarjeta: null,
+  })
+  assert.equal(cobroParaLaBase({ medio: 'tarjeta', cuotas: 1, recargo: 0, tarjeta: '' }).tarjeta, null)
+  assert.deepEqual(pagoConTarjeta({ medio: 'tarjeta', cuotas: 6, recargo: 12.5 }, 600000), { nombre: '', cuotas: 6, recargo: 12.5, total_ars: 675000, cuota_ars: 112500 })
+  assert.equal(pagoConTarjeta({ medio: 'tarjeta', cuotas: 1, recargo: 5, tarjeta: 'Naranja' }, 600000).nombre, 'Naranja')
   assert.equal(pagoConTarjeta({ medio: 'transferencia' }, 600000), null)
 
   const venta = {
@@ -699,8 +765,12 @@ probar('cobrar con tarjeta manda las cuotas a la base y el ticket dice cuanto qu
   }
   const comprobante = armarComprobante(venta)
   assert.deepEqual(comprobante.pagos, [{ nombre: 'Tarjeta, 6 cuotas', monto_ars: 600000 }])
-  assert.deepEqual(comprobante.tarjeta, { cuotas: 6, recargo: 12.5, total_ars: 675000, cuota_ars: 112500 })
+  assert.deepEqual(comprobante.tarjeta, { nombre: '', cuotas: 6, recargo: 12.5, total_ars: 675000, cuota_ars: 112500 })
   assert.deepEqual(armarComprobante({ ...venta, cuotas: 1, recargo_pct: 0 }).pagos, [{ nombre: 'Tarjeta, 1 pago', monto_ars: 600000 }])
+  // Con la tarjeta elegida, el ticket dice cual.
+  const conNaranja = armarComprobante({ ...venta, cuotas: 3, recargo_pct: 12, tarjeta: 'Naranja' })
+  assert.deepEqual(conNaranja.pagos, [{ nombre: 'Tarjeta Naranja, 3 cuotas', monto_ars: 600000 }])
+  assert.deepEqual(conNaranja.tarjeta, { nombre: 'Naranja', cuotas: 3, recargo: 12, total_ars: 672000, cuota_ars: 224000 })
   assert.equal(armarComprobante({ ...venta, medio: 'efectivo', cuotas: null }).tarjeta, null)
   // En la caja, lo de la tarjeta va con lo del banco.
   assert.deepEqual(repartirCobro({ medio: 'tarjeta', efectivo_ars: 100 }, 5000), { efectivo_ars: 0, transferencia_ars: 5000 })
@@ -709,6 +779,11 @@ probar('el ticket dice en cuantas cuotas y de cuanto se paso la tarjeta', () => 
   assert.equal(textoDeTarjeta({ cuotas: 6, recargo: 12.5, total_ars: 675000, cuota_ars: 112500 }), 'Tarjeta: 6 cuotas de $ 112.500 (total $ 675.000, recargo 12,5 %)')
   assert.equal(textoDeTarjeta({ cuotas: 3, recargo: 0, total_ars: 600000, cuota_ars: 200000 }), 'Tarjeta: 3 cuotas sin interés de $ 200.000')
   assert.equal(textoDeTarjeta({ cuotas: 1, recargo: 0, total_ars: 600000, cuota_ars: 600000 }), 'Tarjeta: 1 pago de $ 600.000')
+  assert.equal(textoDeTarjeta({ nombre: 'Naranja', cuotas: 1, recargo: 5, total_ars: 630000, cuota_ars: 630000 }), 'Tarjeta Naranja: 1 pago de $ 630.000 (recargo 5 %)')
+  assert.equal(
+    textoDeTarjeta({ nombre: 'Visa / Mastercard', cuotas: 3, recargo: 0, total_ars: 600000, cuota_ars: 200000 }),
+    'Tarjeta Visa / Mastercard: 3 cuotas sin interés de $ 200.000',
+  )
 })
 probar('los modelos se escriben lindos en el catalogo', () => {
   assert.equal(nombreDeModelo('IPHONE 13 PRO MAX'), 'iPhone 13 Pro Max')

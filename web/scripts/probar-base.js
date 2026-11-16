@@ -134,6 +134,8 @@ await probar('catalogo_publico solo trae campos publicos y unidades disponibles'
     'combos', 'nombre', 'detalle',
     // Los planes de cuotas: { cuotas: { planes: [{ cuotas, recargo }], leyenda, accesorios } }.
     'cuotas', 'planes', 'recargo', 'leyenda',
+    // Las tarjetas con sus cuotas: { cuotas: { tarjetas: [{ nombre, un_pago, planes }] } }.
+    'tarjetas', 'un_pago',
     // La foto de cada lote (direccion de Cloudinary, publica).
     'imagen',
     // El descuento pagando en efectivo: { efectivo: { celulares, accesorios } }.
@@ -1294,7 +1296,9 @@ await probar('los planes de cuotas se guardan ordenados y salen en el catalogo p
   const configuracion = (await admin('panel_datos')).configuracion
   assert.deepEqual(configuracion.cuotas_planes, [{ cuotas: 3, recargo: 0 }, { cuotas: 6, recargo: 12.5 }, { cuotas: 9, recargo: 25 }])
   const publico = await rpc('catalogo_publico')
-  assert.deepEqual(publico.cuotas, { planes: configuracion.cuotas_planes, leyenda: 'Visa y Master', accesorios: false })
+  assert.deepEqual(publico.cuotas, { planes: configuracion.cuotas_planes, leyenda: 'Visa y Master', accesorios: false, tarjetas: configuracion.tarjetas })
+  // El panel de antes manda "cuotas_planes": pasan a ser los planes de la primera tarjeta.
+  assert.deepEqual(configuracion.tarjetas[0].planes, configuracion.cuotas_planes)
   // Lo que no se manda queda como estaba.
   await admin('guardar_ajustes', { p_datos: { ticket_pie: 'Gracias' } })
   assert.equal((await admin('panel_datos')).configuracion.cuotas_planes.length, 3)
@@ -1329,6 +1333,107 @@ await probar('vender con tarjeta guarda las cuotas, y en la caja va con lo del b
     /1 a 48/,
   )
   await admin('anular_venta', { p_tabla: 'celulares', p_ids: [libre] })
+})
+
+console.log('\nImport Salta: cada tarjeta con sus cuotas')
+
+await probar('las tarjetas se guardan con sus cuotas y la primera queda como los planes de antes', async () => {
+  await admin('guardar_ajustes', {
+    p_datos: {
+      tarjetas: [
+        { nombre: '  Visa /  Mastercard ', un_pago: 0, planes: [{ cuotas: 6, recargo: 15 }, { cuotas: 3, recargo: 0 }] },
+        { nombre: 'Naranja', un_pago: 5, planes: [{ cuotas: 3, recargo: 12 }] },
+      ],
+    },
+  })
+  const configuracion = (await admin('panel_datos')).configuracion
+  // Respeta el orden de las tarjetas, ordena los planes y limpia los nombres.
+  assert.deepEqual(configuracion.tarjetas, [
+    { nombre: 'Visa / Mastercard', un_pago: 0, planes: [{ cuotas: 3, recargo: 0 }, { cuotas: 6, recargo: 15 }] },
+    { nombre: 'Naranja', un_pago: 5, planes: [{ cuotas: 3, recargo: 12 }] },
+  ])
+  assert.deepEqual(configuracion.cuotas_planes, configuracion.tarjetas[0].planes)
+  assert.deepEqual((await rpc('catalogo_publico')).cuotas.tarjetas, configuracion.tarjetas)
+  // Lo que no se manda queda como estaba.
+  await admin('guardar_ajustes', { p_datos: { ticket_pie: 'Gracias' } })
+  assert.equal((await admin('panel_datos')).configuracion.tarjetas.length, 2)
+
+  const guardar = (tarjetas) => admin('guardar_ajustes', { p_datos: { tarjetas } })
+  await rechaza(guardar([{ nombre: ' ', planes: [] }]), /sin nombre/)
+  await rechaza(guardar([{ nombre: 'Naranja' }, { nombre: 'NARANJA' }]), /repetida/)
+  await rechaza(guardar([{ nombre: 'Naranja', un_pago: 301 }]), /recargo/)
+  await rechaza(guardar([{ nombre: 'Naranja', un_pago: 'mucho' }]), /no es un número/)
+  await rechaza(guardar([{ nombre: 'Naranja', planes: [{ cuotas: 1, recargo: 0 }] }]), /2 a 48/)
+  await rechaza(guardar(Array.from({ length: 9 }, (_, numero) => ({ nombre: `T${numero}` }))), /8 tarjetas/)
+  await rechaza(guardar([{ nombre: 'x'.repeat(41) }]), /muy largo/)
+  // Sin tarjetas tampoco hay planes.
+  await guardar([])
+  const vacia = (await admin('panel_datos')).configuracion
+  assert.deepEqual([vacia.tarjetas, vacia.cuotas_planes], [[], []])
+  // El panel de antes, sin tarjetas cargadas, arma "Visa / Mastercard" con sus planes.
+  await admin('guardar_ajustes', { p_datos: { cuotas_planes: [{ cuotas: 3, recargo: 0 }] } })
+  assert.deepEqual((await admin('panel_datos')).configuracion.tarjetas, [{ nombre: 'Visa / Mastercard', un_pago: 0, planes: [{ cuotas: 3, recargo: 0 }] }])
+})
+
+await probar('la venta guarda con que tarjeta se pago, y se borra si deja de ser con tarjeta', async () => {
+  const [libre] = await idsDe('celulares', 'IPHONE 11')
+  const { comprobante } = await admin('vender', {
+    p_celulares: [{ id: libre, precio_usd: 200 }], p_accesorios: [],
+    p_datos: { cliente: 'Juan Pérez', medio: 'tarjeta', cuotas: 3, recargo_pct: 12, tarjeta: ' Naranja ' },
+  })
+  const datos = await admin('comprobante_datos', { p_id: comprobante })
+  assert.deepEqual([datos.tarjeta, datos.cuotas, Number(datos.recargo_pct)], ['Naranja', 3, 12])
+  const venta = (await admin('ventas_datos')).comprobantes.find((otro) => Number(otro.id) === comprobante)
+  assert.equal(venta.tarjeta, 'Naranja')
+  assert.match(armarComprobante(datos).pagos[0].nombre, /^Tarjeta Naranja, 3 cuotas$/)
+
+  // Cambiar de tarjeta al corregir la venta.
+  await admin('editar_comprobante', { p_id: comprobante, p_datos: { cliente: 'Juan Pérez', medio: 'tarjeta', cuotas: 1, tarjeta: 'Visa / Mastercard' } })
+  assert.equal((await admin('comprobante_datos', { p_id: comprobante })).tarjeta, 'Visa / Mastercard')
+  // Sin tarjeta elegida queda vacia (como las ventas de antes).
+  await admin('editar_comprobante', { p_id: comprobante, p_datos: { cliente: 'Juan Pérez', medio: 'tarjeta', tarjeta: '  ' } })
+  assert.equal((await admin('comprobante_datos', { p_id: comprobante })).tarjeta, null)
+  // Pasarla a transferencia borra la tarjeta aunque venga en los datos.
+  await admin('editar_comprobante', { p_id: comprobante, p_datos: { cliente: 'Juan Pérez', medio: 'transferencia', tarjeta: 'Naranja' } })
+  assert.equal((await admin('comprobante_datos', { p_id: comprobante })).tarjeta, null)
+  await rechaza(
+    admin('editar_comprobante', { p_id: comprobante, p_datos: { cliente: 'Juan Pérez', medio: 'tarjeta', tarjeta: 'x'.repeat(41) } }),
+    /muy largo/,
+  )
+  // La base no deja una tarjeta en un pago que no es con tarjeta.
+  await rechaza(sql(`update public.comprobantes set medio = 'efectivo', tarjeta = 'Naranja' where id = $1`, [comprobante]), /comprobantes_tarjeta_valida/)
+  await admin('anular_venta', { p_tabla: 'celulares', p_ids: [libre] })
+})
+
+await probar('la migracion pasa los planes que ya estaban a "Visa / Mastercard" y suma Naranja, sin pisar tarjetas cargadas', async () => {
+  const tarjetas = (await sql(`select tarjetas from public.configuracion where id = 1`))[0].tarjetas
+  const migracion = migraciones[archivos.indexOf('20261116000000_tarjetas.sql')]
+  // Naranja como la pidio el dueno: 3 cuotas con 24 % y 6 con 43 %.
+  const naranja = { nombre: 'Naranja', un_pago: 0, planes: [{ cuotas: 3, recargo: 24 }, { cuotas: 6, recargo: 43 }] }
+  const leer = async () => (await sql(`select tarjetas, cuotas_planes from public.configuracion where id = 1`))[0]
+
+  // Con planes cargados: quedan como "Visa / Mastercard", primera.
+  await sql(`update public.configuracion set tarjetas = '[]', cuotas_planes = '[{"cuotas": 6, "recargo": 10}]' where id = 1`)
+  await base.exec(migracion)
+  let fila = await leer()
+  assert.deepEqual(fila.tarjetas, [{ nombre: 'Visa / Mastercard', un_pago: 0, planes: [{ cuotas: 6, recargo: 10 }] }, naranja])
+  assert.deepEqual(fila.cuotas_planes, [{ cuotas: 6, recargo: 10 }])
+  // Correrla de nuevo no suma otra Naranja.
+  await base.exec(migracion)
+  assert.equal((await leer()).tarjetas.length, 2)
+
+  // Sin planes: queda Naranja sola, y sus planes son la copia de la primera.
+  await sql(`update public.configuracion set tarjetas = '[]', cuotas_planes = '[]' where id = 1`)
+  await base.exec(migracion)
+  fila = await leer()
+  assert.deepEqual(fila.tarjetas, [naranja])
+  assert.deepEqual(fila.cuotas_planes, naranja.planes)
+  // Y el catalogo publico la muestra.
+  assert.deepEqual((await rpc('catalogo_publico')).cuotas.tarjetas, [naranja])
+  // Correrla de nuevo no cambia nada.
+  await sql(`update public.configuracion set tarjetas = $1 where id = 1`, [JSON.stringify(tarjetas)])
+  await base.exec(migracion)
+  assert.deepEqual((await sql(`select tarjetas from public.configuracion where id = 1`))[0].tarjetas, tarjetas)
 })
 
 await probar('un acta necesita las dos firmas y la revision completa', async () => {

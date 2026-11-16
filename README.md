@@ -18,9 +18,12 @@ Import Salta:
   tarjeta. En `Ajustes` el dueño elige el descuento pagando en efectivo (10 %, 20 %,
   30 %...), uno para celulares y otro para accesorios. El catálogo muestra los dos precios
   y al vender aparece el botón *Efectivo*.
-- **Cuotas**: el dueño elige en `Ajustes` los planes (3, 6, 9, 12...) y el recargo de
-  cada uno. El catálogo los muestra en cada equipo. Se cobra con el posnet del local o
-  mandándole un QR al cliente, y al vender se elige *Tarjeta o QR* y las cuotas.
+- **Tarjetas y cuotas**: cada tarjeta le cuesta distinto al local, así que en `Ajustes`
+  el dueño carga cada una (o un grupo: *Visa / Mastercard*, *Naranja*...) con su recargo
+  en 1 pago y sus planes (3, 6, 9, 12...) con el recargo de cada uno. El catálogo muestra
+  la mejor cuota en cada equipo y, en *Ver cuotas*, las de cada tarjeta. Se cobra con el
+  posnet del local o mandándole un QR al cliente: al vender se elige *Tarjeta o QR*, la
+  tarjeta y las cuotas, y el ticket y el historial de ventas dicen con qué tarjeta se pagó.
 - **Acta de entrega y garantía**: cada celular vendido lleva un acta con la revisión punto
   por punto (pantalla, Face ID, cámaras, batería...), los días de garantía (30 o lo que
   elija el dueño) y las firmas del cliente y del vendedor en la pantalla. Sin la revisión

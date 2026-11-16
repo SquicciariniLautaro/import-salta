@@ -6,7 +6,7 @@ import { useState } from 'react'
 import CampoPesos from '../componentes/CampoPesos.jsx'
 import { normalizar, pesos } from '../formato.js'
 import { MEDIOS, pagoConTarjeta, problemaDeDeuda } from '../servicios/comprobante.js'
-import { nombreDePlan, textoDeRecargo } from '../servicios/cuotas.js'
+import { cobroConTarjeta, cobroEnCuotas, nombreDePlan, opcionesDeTarjeta, tarjetasDe, textoDeRecargo } from '../servicios/cuotas.js'
 import { usePanel } from './contexto.js'
 
 // Efectivo o transferencia, para un pago de un solo medio (los de una cuenta
@@ -22,18 +22,27 @@ export function SelectorMedio({ id, valor, alCambiar }) {
 
 // Como se paga una venta o un arreglo. Ademas de efectivo y transferencia
 // permite las dos cosas (ahi pide cuanto fue en efectivo y muestra el resto)
-// y tarjeta (en el posnet o con un QR), en un pago o en las cuotas de Ajustes.
-// cobro: { medio, efectivo, cuotas, recargo }. total: lo que se cobra, en pesos.
+// y tarjeta (en el posnet o con un QR), con la tarjeta y las cuotas de Ajustes.
+// cobro: { medio, efectivo, cuotas, recargo, tarjeta }. total: lo que se
+// cobra, en pesos.
 export function CamposDeCobro({ cobro, alCambiar, total }) {
+  const { configuracion } = usePanel()
   const mixto = cobro.medio === 'mixto'
   const resto = total - (cobro.efectivo ?? 0)
+
+  // Al pasar a tarjeta se propone la primera de Ajustes, con su recargo en 1 pago.
+  function elegirMedio(medio) {
+    const [primera] = tarjetasDe(configuracion)
+    const nuevo = { ...cobro, medio }
+    alCambiar(medio === 'tarjeta' && !cobro.tarjeta && primera ? cobroConTarjeta(nuevo, primera) : nuevo)
+  }
 
   return (
     <div className="grid grid-cols-2 gap-3">
       {cobro.medio === 'tarjeta' && <CamposDeTarjeta cobro={cobro} alCambiar={alCambiar} total={total} />}
       <label className="etiqueta col-span-2">
         Cómo paga
-        <select className="campo" value={cobro.medio} onChange={(evento) => alCambiar({ ...cobro, medio: evento.target.value })}>
+        <select className="campo" value={cobro.medio} onChange={(evento) => elegirMedio(evento.target.value)}>
           {MEDIOS.map((medio) => (
             <option key={medio.id} value={medio.id}>
               {medio.nombre}
@@ -59,37 +68,53 @@ export function CamposDeCobro({ cobro, alCambiar, total }) {
   )
 }
 
-// En cuantas cuotas se cobra con tarjeta. Las opciones son "1 pago" y los
-// planes de Ajustes, cada uno con su recargo; el recargo se puede cambiar en
-// el momento (una promo del dia, por ejemplo). Muestra cuanto hay que cobrar
-// (en el posnet o en el QR) y cuanto queda cada cuota.
+// Con que tarjeta y en cuantas cuotas se cobra. Primero se elige la tarjeta
+// (las de Ajustes) y despues las cuotas: "1 pago" y los planes de esa
+// tarjeta, cada uno con su recargo. El recargo se puede cambiar en el momento
+// (una promo del dia, por ejemplo). Muestra cuanto hay que cobrar (en el
+// posnet o en el QR) y cuanto queda cada cuota.
 function CamposDeTarjeta({ cobro, alCambiar, total }) {
   const { configuracion } = usePanel()
-  const planes = configuracion.cuotas_planes || []
+  const tarjetas = tarjetasDe(configuracion)
+  const tarjeta = tarjetas.find((otra) => otra.nombre === cobro.tarjeta) || null
+  const opciones = opcionesDeTarjeta(tarjeta)
   const cuotas = cobro.cuotas || 1
   const conTarjeta = pagoConTarjeta(cobro, total)
-  // Si alguien elige un plan que despues se saco de Ajustes, igual se ve.
-  const conocido = cuotas === 1 || planes.some((plan) => plan.cuotas === cuotas)
-
-  function elegir(valor) {
-    const elegidas = Number(valor)
-    const plan = planes.find((otro) => otro.cuotas === elegidas)
-    alCambiar({ ...cobro, cuotas: elegidas, recargo: plan ? Number(plan.recargo) : 0 })
-  }
+  // Si se corrige una venta con una tarjeta o un plan que despues se saco de
+  // Ajustes, igual se ve lo que tenia.
+  const tarjetaConocida = !cobro.tarjeta || tarjeta
+  const cuotasConocidas = opciones.some((opcion) => opcion.cuotas === cuotas)
 
   return (
     <div className="order-last col-span-2 grid grid-cols-2 gap-3">
+      {(tarjetas.length > 0 || cobro.tarjeta) && (
+        <label className="etiqueta col-span-2">
+          Tarjeta
+          <select
+            className="campo"
+            value={cobro.tarjeta || ''}
+            onChange={(evento) => alCambiar(cobroConTarjeta(cobro, tarjetas.find((otra) => otra.nombre === evento.target.value)))}
+          >
+            {!cobro.tarjeta && <option value="">Sin elegir</option>}
+            {tarjetas.map((otra) => (
+              <option key={otra.nombre} value={otra.nombre}>
+                {otra.nombre || 'Tarjeta de crédito'}
+              </option>
+            ))}
+            {!tarjetaConocida && <option value={cobro.tarjeta}>{cobro.tarjeta}</option>}
+          </select>
+        </label>
+      )}
       <label className="etiqueta">
         Cuotas
-        <select className="campo" value={cuotas} onChange={(evento) => elegir(evento.target.value)}>
-          <option value={1}>1 pago</option>
-          {planes.map((plan) => (
-            <option key={plan.cuotas} value={plan.cuotas}>
-              {nombreDePlan(plan)}
-              {Number(plan.recargo) > 0 ? ` (+${textoDeRecargo(plan.recargo)})` : ''}
+        <select className="campo" value={cuotas} onChange={(evento) => alCambiar(cobroEnCuotas(cobro, tarjeta, Number(evento.target.value)))}>
+          {opciones.map((opcion) => (
+            <option key={opcion.cuotas} value={opcion.cuotas}>
+              {opcion.cuotas === 1 ? '1 pago' : nombreDePlan(opcion)}
+              {Number(opcion.recargo) > 0 ? ` (+${textoDeRecargo(opcion.recargo)})` : ''}
             </option>
           ))}
-          {!conocido && <option value={cuotas}>{cuotas} cuotas</option>}
+          {!cuotasConocidas && <option value={cuotas}>{cuotas} cuotas</option>}
         </select>
       </label>
       <label className="etiqueta">
@@ -115,8 +140,8 @@ function CamposDeTarjeta({ cobro, alCambiar, total }) {
           {conTarjeta.recargo > 0 && ` Incluye ${textoDeRecargo(conTarjeta.recargo)} de recargo. En la venta queda el precio con tarjeta.`}
         </p>
       </div>
-      {planes.length === 0 && (
-        <p className="col-span-2 text-xs text-neutral-500">Los planes de cuotas y sus recargos se cargan en Ajustes.</p>
+      {tarjetas.length === 0 && (
+        <p className="col-span-2 text-xs text-neutral-500">Las tarjetas, sus cuotas y sus recargos se cargan en Ajustes.</p>
       )}
     </div>
   )

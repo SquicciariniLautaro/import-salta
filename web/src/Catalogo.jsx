@@ -21,7 +21,7 @@ import { obtenerCatalogo } from './api.js'
 import { NEGOCIO, rutaPublica } from './negocio.js'
 import { aPesos, enlaceAccesorio, enlaceCelular, normalizar, pesos, precioSegunCantidad } from './formato.js'
 import { agruparPorFamilia, tituloDeFamilia } from './servicios/stock.js'
-import { cuotasDe, planMasLargo, planesPara } from './servicios/cuotas.js'
+import { cuotaDestacada, cuotasDe, nombreSiHayVarias, planMasLargo, tarjetasPara, textoDeRecargo, todosLosPlanes, totalConRecargo } from './servicios/cuotas.js'
 import { descuentoPara, precioEnEfectivo } from './servicios/efectivo.js'
 import PuntoColor from './componentes/PuntoColor.jsx'
 import Foto from './componentes/Foto.jsx'
@@ -230,11 +230,15 @@ function Encabezado({ conRetraso }) {
   )
 }
 
-// Aviso de que se puede pagar en cuotas. Solo aparece si el dueno cargo planes.
+// Aviso de que se puede pagar en cuotas. Solo aparece si el dueno cargo
+// planes en alguna tarjeta. Con varias tarjetas dice cuales.
 function AvisoCuotas({ cuotas }) {
-  const largo = planMasLargo(cuotas.planes)
+  const tarjetas = tarjetasPara('celulares', cuotas)
+  const planes = todosLosPlanes(tarjetas)
+  const largo = planMasLargo(planes)
   if (!largo) return null
-  const largoSinInteres = planMasLargo(cuotas.planes.filter((plan) => !(plan.recargo > 0)))
+  const largoSinInteres = planMasLargo(planes.filter((plan) => !(plan.recargo > 0)))
+  const nombres = tarjetas.length > 1 ? tarjetas.map((tarjeta) => tarjeta.nombre).join(' · ') : ''
 
   return (
     <div className="flex items-start gap-3 border-b border-borde px-3 py-2.5">
@@ -246,6 +250,7 @@ function AvisoCuotas({ cuotas }) {
           Pagá en hasta {largo.cuotas} cuotas
           {largoSinInteres && <span className="text-verde"> · {largoSinInteres.cuotas} sin interés</span>}
         </p>
+        {nombres && <p className="text-xs break-words text-neutral-600">{nombres}</p>}
         <p className="text-xs break-words text-neutral-500">
           {cuotas.leyenda || 'Con tarjeta de crédito bancaria.'}
         </p>
@@ -292,19 +297,23 @@ function Precio({ precioArs, descuento }) {
 
 // Lo que se ve debajo del equipo: la mejor cuota a la vista (la mas larga sin
 // interes o, si no hay, la mas larga) y "Ver cuotas" para ver todas.
-function ResumenCuotas({ precioArs, planes, abierto, alAlternar }) {
-  if (planes.length === 0 || !(precioArs > 0)) return null
-  const lista = cuotasDe(precioArs, planes)
-  const sinInteres = lista.filter((plan) => plan.sin_interes)
-  const destacada = sinInteres.length > 0 ? sinInteres[sinInteres.length - 1] : lista[lista.length - 1]
+function ResumenCuotas({ precioArs, tarjetas, abierto, alAlternar }) {
+  if (!(precioArs > 0)) return null
+  const destacada = cuotaDestacada(precioArs, tarjetas)
+  if (!destacada) return null
+  // Con varias tarjetas se dice con cual es esa cuota.
+  const conTarjeta = nombreSiHayVarias({ nombre: destacada.tarjeta }, tarjetas)
+  // Cuantas opciones hay en el detalle: si es una sola, ya se esta viendo.
+  const opciones = tarjetas.reduce((suma, tarjeta) => suma + tarjeta.planes.length + (tarjeta.un_pago > 0 ? 1 : 0), 0)
 
   return (
     <p className="mt-0.5 text-[11px] leading-snug">
       <span className={destacada.sin_interes ? 'text-verde' : 'text-neutral-600'}>
         {destacada.cuotas} cuotas{destacada.sin_interes ? ' sin interés' : ''} de{' '}
         <span className="whitespace-nowrap">{pesos(destacada.cuota_ars)}</span>
+        {conTarjeta && ` con ${conTarjeta}`}
       </span>
-      {lista.length > 1 && (
+      {opciones > 1 && (
         <>
           {' · '}
           <button type="button" onClick={alAlternar} aria-expanded={abierto} className="enlace-raya font-medium text-azul">
@@ -317,15 +326,49 @@ function ResumenCuotas({ precioArs, planes, abierto, alAlternar }) {
 }
 
 // Todas las cuotas de un precio: cuanto queda cada una y el total con recargo.
-function DetalleCuotas({ precioArs, planes }) {
+// Con varias tarjetas se elige cual mirar; arranca en la de la cuota que se
+// destaca en el renglon.
+function DetalleCuotas({ precioArs, tarjetas }) {
+  const [elegida, setElegida] = useState(() => {
+    const destacada = cuotaDestacada(precioArs, tarjetas)
+    return Math.max(0, tarjetas.findIndex((tarjeta) => tarjeta.nombre === destacada?.tarjeta))
+  })
+  const tarjeta = tarjetas[elegida] || tarjetas[0]
+  if (!tarjeta) return null
+
   return (
     <div className="animate-aparecer rounded-lg border border-borde bg-superficie px-3 py-2">
       <p className="flex items-center gap-1.5 text-[11px] font-medium tracking-[0.12em] text-neutral-500 uppercase">
         <IconoTarjeta clase="h-3.5 w-3.5" />
-        Cuotas con tarjeta de crédito
+        {tarjetas.length > 1 ? 'Cuotas según la tarjeta' : tarjeta.nombre ? `Cuotas con ${tarjeta.nombre}` : 'Cuotas con tarjeta de crédito'}
       </p>
+      {tarjetas.length > 1 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {tarjetas.map((otra, posicion) => (
+            <button
+              key={otra.nombre}
+              type="button"
+              aria-pressed={posicion === elegida}
+              onClick={() => setElegida(posicion)}
+              className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                posicion === elegida ? 'border-oro bg-oro/10 text-oro' : 'border-borde text-neutral-500 hover:text-blanco'
+              }`}
+            >
+              {otra.nombre}
+            </button>
+          ))}
+        </div>
+      )}
       <ul className="mt-1.5 space-y-1">
-        {cuotasDe(precioArs, planes).map((plan) => (
+        {tarjeta.un_pago > 0 && (
+          <li className="flex items-baseline justify-between gap-2 text-sm">
+            <span className="min-w-0 text-neutral-700">
+              1 pago<span className="ml-1.5 text-xs text-neutral-500">+{textoDeRecargo(tarjeta.un_pago)}</span>
+            </span>
+            <span className="shrink-0 font-semibold whitespace-nowrap text-blanco">{pesos(totalConRecargo(precioArs, tarjeta.un_pago))}</span>
+          </li>
+        )}
+        {cuotasDe(precioArs, tarjeta.planes).map((plan) => (
           <li key={plan.cuotas} className="flex items-baseline justify-between gap-2 text-sm">
             <span className="min-w-0 text-neutral-700">
               {plan.cuotas} cuotas
@@ -361,7 +404,7 @@ function Separador({ titulo, columnas }) {
 
 function TablaCelulares({ lotes, catalogo }) {
   const grupos = agruparPorFamilia(lotes)
-  const planes = planesPara('celulares', catalogo.cuotas)
+  const tarjetas = tarjetasPara('celulares', catalogo.cuotas)
   const descuento = descuentoPara('celulares', catalogo.efectivo)
   const conFotos = lotes.some((lote) => lote.imagen)
 
@@ -391,7 +434,7 @@ function TablaCelulares({ lotes, catalogo }) {
                 key={lote.clave}
                 lote={lote}
                 cotizacion={catalogo.cotizacion}
-                planes={planes}
+                tarjetas={tarjetas}
                 descuento={descuento}
                 conFotos={conFotos}
               />
@@ -403,7 +446,7 @@ function TablaCelulares({ lotes, catalogo }) {
   )
 }
 
-function FilaCelular({ lote, cotizacion, planes, descuento, conFotos }) {
+function FilaCelular({ lote, cotizacion, tarjetas, descuento, conFotos }) {
   const [abierto, setAbierto] = useState(false)
   const precioArs = aPesos(lote.precio_usd, cotizacion)
 
@@ -420,7 +463,7 @@ function FilaCelular({ lote, cotizacion, planes, descuento, conFotos }) {
               </div>
               {lote.detalles && <p className="text-xs break-words text-neutral-500">{lote.detalles}</p>}
               {lote.cantidad > 1 && <p className="text-[11px] text-neutral-500">{lote.cantidad} disponibles</p>}
-              <ResumenCuotas precioArs={precioArs} planes={planes} abierto={abierto} alAlternar={() => setAbierto(!abierto)} />
+              <ResumenCuotas precioArs={precioArs} tarjetas={tarjetas} abierto={abierto} alAlternar={() => setAbierto(!abierto)} />
             </div>
           </div>
         </td>
@@ -435,7 +478,7 @@ function FilaCelular({ lote, cotizacion, planes, descuento, conFotos }) {
       {abierto && (
         <tr className="border-b border-borde">
           <td colSpan={4} className="px-3 pb-3">
-            <DetalleCuotas precioArs={precioArs} planes={planes} />
+            <DetalleCuotas precioArs={precioArs} tarjetas={tarjetas} />
           </td>
         </tr>
       )}
@@ -445,7 +488,7 @@ function FilaCelular({ lote, cotizacion, planes, descuento, conFotos }) {
 
 function TablaAccesorios({ lotes, catalogo }) {
   const grupos = agruparPorFamilia(lotes)
-  const planes = planesPara('accesorios', catalogo.cuotas)
+  const tarjetas = tarjetasPara('accesorios', catalogo.cuotas)
   const descuento = descuentoPara('accesorios', catalogo.efectivo)
   const conFotos = lotes.some((lote) => lote.imagen)
 
@@ -472,7 +515,7 @@ function TablaAccesorios({ lotes, catalogo }) {
                 key={lote.clave}
                 lote={lote}
                 cotizacion={catalogo.cotizacion}
-                planes={planes}
+                tarjetas={tarjetas}
                 descuento={descuento}
                 conFotos={conFotos}
               />
@@ -484,7 +527,7 @@ function TablaAccesorios({ lotes, catalogo }) {
   )
 }
 
-function FilaAccesorio({ lote, cotizacion, planes, descuento, conFotos }) {
+function FilaAccesorio({ lote, cotizacion, tarjetas, descuento, conFotos }) {
   // Que se ve abajo del renglon: nada, los precios por cantidad o las cuotas.
   const [abierto, setAbierto] = useState(null) // null | 'escalas' | 'cuotas'
   const tieneEscalas = lote.escalas.length > 0
@@ -504,7 +547,7 @@ function FilaAccesorio({ lote, cotizacion, planes, descuento, conFotos }) {
               </div>
               {lote.detalles && <p className="text-xs break-words text-neutral-500">{lote.detalles}</p>}
               {lote.cantidad > 1 && <p className="text-[11px] text-neutral-500">{lote.cantidad} disponibles</p>}
-              <ResumenCuotas precioArs={precioArs} planes={planes} abierto={abierto === 'cuotas'} alAlternar={() => alternar('cuotas')} />
+              <ResumenCuotas precioArs={precioArs} tarjetas={tarjetas} abierto={abierto === 'cuotas'} alAlternar={() => alternar('cuotas')} />
               {tieneEscalas && (
                 <button
                   type="button"
@@ -531,7 +574,7 @@ function FilaAccesorio({ lote, cotizacion, planes, descuento, conFotos }) {
             {abierto === 'escalas' ? (
               <EscalaDePrecios lote={lote} cotizacion={cotizacion} descuento={descuento} />
             ) : (
-              <DetalleCuotas precioArs={precioArs} planes={planes} />
+              <DetalleCuotas precioArs={precioArs} tarjetas={tarjetas} />
             )}
           </td>
         </tr>
