@@ -17,7 +17,7 @@ import { precioPorCantidad } from '../servicios/precios.js'
 import { describir } from '../servicios/texto.js'
 import { diaDe } from '../servicios/caja.js'
 import { diaDeLaCompraMasNueva, fechaParaLaBase, problemaDeDia } from '../servicios/fechas.js'
-import { CampoFecha, Cantidad, ElegirPrecio } from './Campos.jsx'
+import { CampoFecha, Cantidad, ElegirPrecio, GananciaDeVenta } from './Campos.jsx'
 import { CampoDeuda, CampoGarantia, CampoVendedor, CamposDeCliente, CamposDeCobro } from './Cobro.jsx'
 import { useVendedor } from './useVendedor.js'
 import { IconoImpresora, VentanaTicket } from './Impresion.jsx'
@@ -203,6 +203,11 @@ export function ModalVenta({ lote, unidadInicial, alCerrar }) {
             }}
           />
         </label>
+        {/* Compra, venta y la diferencia, con el precio que se este poniendo. */}
+        <GananciaDeVenta
+          costosUsd={lote.disponibles.filter((unidad) => elegidas.includes(unidad.id)).map((unidad) => unidad.costo_usd)}
+          precioArs={precio}
+        />
 
         <section className="border-t border-neutral-200 pt-3">
           <h3 className="text-sm font-semibold">{esCelular ? 'Accesorios que se lleva' : 'Otros accesorios que se lleva'}</h3>

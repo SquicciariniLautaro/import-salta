@@ -74,48 +74,98 @@ export function CampoUsd({ id, valor, alCambiar, cotizacion, disabled }) {
   )
 }
 
-// Al poner los precios de un lote: cuanto se gana por unidad entre el costo y
-// cada precio de venta (con tarjeta, en efectivo si hay descuento y por mayor
-// si se cargo). Todo en pesos: el costo con el dolar de costo y la venta con
-// el de venta, igual que en el stock. Los montos llegan como el texto de los
-// campos, en dolares. tabla: 'celulares' o 'accesorios'.
+// Lo que se gana vendiendo a "ventaArs" algo que costo "compraArs", los dos en
+// pesos: "$ 150.000 · US$ 150 · +30 %". En rojo si se pierde plata.
+function MontoDeGanancia({ ventaArs, compraArs, cotizacion }) {
+  const { ars, porcentaje } = ganancia(ventaArs, compraArs)
+  return (
+    <span className={`text-right font-semibold whitespace-nowrap ${ars < 0 ? 'text-red-700' : 'text-green-700'}`}>
+      {pesos(ars)}
+      <span className="font-normal text-neutral-500">
+        {' '}· {dolares(ars / cotizacion)}
+        {porcentaje !== null && ` · ${porcentaje > 0 ? '+' : ''}${String(porcentaje).replace('.', ',')} %`}
+      </span>
+    </span>
+  )
+}
+
+// Al poner los precios de un lote: la diferencia entre lo que costo (compra) y
+// cada precio al que se puede vender. Siempre el precio de venta (el
+// publicado); ademas el de efectivo si hay descuento y el mayorista si se
+// cargo. Todo en pesos: la compra con el dolar de costo y la venta con el de
+// venta, igual que en el stock. Los montos llegan como el texto de los campos,
+// en dolares. tabla: 'celulares' o 'accesorios'.
 export function Ganancia({ costo, precio, mayorista = '', tabla }) {
   const { configuracion, cotizaciones } = usePanel()
   const esNumero = (texto) => texto !== '' && Number(texto) >= 0
   if (!esNumero(costo) || !esNumero(precio)) return null
 
-  const costoArs = aPesos(Number(costo), cotizaciones.costo)
-  const tarjeta = aPesos(Number(precio), cotizaciones.venta)
+  const compra = aPesos(Number(costo), cotizaciones.costo)
+  const venta = aPesos(Number(precio), cotizaciones.venta)
   const descuento = descuentoPara(tabla, descuentosDe(configuracion))
-  const efectivo = precioEnEfectivo(tarjeta, descuento)
+  const efectivo = precioEnEfectivo(venta, descuento)
   const renglones = [
-    { nombre: 'Con tarjeta', precio: tarjeta },
-    efectivo !== null && { nombre: `En efectivo (−${descuento} %)`, precio: efectivo },
-    esNumero(mayorista) && { nombre: 'Por mayor', precio: aPesos(Number(mayorista), cotizaciones.venta) },
+    { nombre: 'Venta', precio: venta },
+    efectivo !== null && { nombre: `Venta en efectivo (−${descuento} %)`, precio: efectivo },
+    esNumero(mayorista) && { nombre: 'Venta por mayor', precio: aPesos(Number(mayorista), cotizaciones.venta) },
   ].filter(Boolean)
 
   return (
-    <div className="rounded-lg border border-neutral-200 px-3 py-2">
-      <p className="text-xs font-semibold text-neutral-700">Ganancia por unidad</p>
-      <ul className="mt-1 space-y-0.5 text-xs">
-        {renglones.map((renglon) => {
-          const { ars, porcentaje } = ganancia(renglon.precio, costoArs)
-          return (
-            <li key={renglon.nombre} className="flex items-baseline justify-between gap-2">
-              <span className="min-w-0 truncate text-neutral-600">{renglon.nombre}</span>
-              <span className={`text-right whitespace-nowrap ${ars < 0 ? 'font-semibold text-red-700' : 'font-semibold text-green-700'}`}>
-                {pesos(ars)}
-                <span className="font-normal text-neutral-500">
-                  {' '}· {dolares(ars / cotizaciones.venta)}
-                  {porcentaje !== null && ` · ${porcentaje > 0 ? '+' : ''}${String(porcentaje).replace('.', ',')} %`}
-                </span>
-              </span>
-            </li>
-          )
-        })}
-      </ul>
-      {renglones.some((renglon) => ganancia(renglon.precio, costoArs).ars < 0) && (
-        <p className="mt-1 text-[11px] text-red-700">Hay un precio por debajo del costo.</p>
+    <div className="rounded-lg border border-neutral-200 px-3 py-2 text-xs">
+      <p className="font-semibold text-neutral-700">Ganancia por unidad (venta − compra)</p>
+      <p className="mt-1 flex items-baseline justify-between gap-2">
+        <span className="text-neutral-600">Compra</span>
+        <span className="font-medium whitespace-nowrap">{pesos(compra)}</span>
+      </p>
+      {renglones.map((renglon) => (
+        <div key={renglon.nombre} className="mt-1 border-t border-neutral-200 pt-1">
+          <p className="flex items-baseline justify-between gap-2">
+            <span className="min-w-0 truncate text-neutral-600">{renglon.nombre}</span>
+            <span className="font-medium whitespace-nowrap">{pesos(renglon.precio)}</span>
+          </p>
+          <p className="flex items-baseline justify-between gap-2">
+            <span className="text-neutral-600">Ganancia</span>
+            <MontoDeGanancia ventaArs={renglon.precio} compraArs={compra} cotizacion={cotizaciones.venta} />
+          </p>
+        </div>
+      ))}
+      {renglones.some((renglon) => renglon.precio < compra) && (
+        <p className="mt-1 text-[11px] text-red-700">Hay un precio por debajo de la compra.</p>
+      )}
+    </div>
+  )
+}
+
+// Al vender: la ganancia con el precio que se esta poniendo, sea el publicado,
+// el de efectivo, el mayorista o uno escrito a mano. costosUsd: lo que costo
+// cada unidad elegida (cada una pudo entrar a otro precio). precioArs: el
+// precio por unidad en pesos, o null mientras el campo esta vacio.
+export function GananciaDeVenta({ costosUsd, precioArs }) {
+  const { cotizaciones } = usePanel()
+  if (precioArs === null || precioArs === undefined || costosUsd.length === 0) return null
+  const cantidad = costosUsd.length
+  const compraTotal = costosUsd.reduce((suma, costo) => suma + aPesos(Number(costo) || 0, cotizaciones.costo), 0)
+  const compra = Math.round(compraTotal / cantidad)
+  const ventaTotal = precioArs * cantidad
+  return (
+    <div className="mt-1.5 rounded-lg border border-neutral-200 px-3 py-2 text-xs">
+      <p className="flex items-baseline justify-between gap-2">
+        <span className="text-neutral-600">Compra{cantidad > 1 ? ' c/u' : ''}</span>
+        <span className="font-medium whitespace-nowrap">{pesos(compra)}</span>
+      </p>
+      <p className="flex items-baseline justify-between gap-2">
+        <span className="text-neutral-600">Venta{cantidad > 1 ? ' c/u' : ''}</span>
+        <span className="font-medium whitespace-nowrap">{pesos(precioArs)}</span>
+      </p>
+      <p className="mt-1 flex items-baseline justify-between gap-2 border-t border-neutral-200 pt-1">
+        <span className="font-semibold text-neutral-700">Ganancia{cantidad > 1 ? ' c/u' : ''}</span>
+        <MontoDeGanancia ventaArs={precioArs} compraArs={compra} cotizacion={cotizaciones.venta} />
+      </p>
+      {cantidad > 1 && (
+        <p className="flex items-baseline justify-between gap-2">
+          <span className="font-semibold text-neutral-700">Ganancia total ({cantidad})</span>
+          <MontoDeGanancia ventaArs={ventaTotal} compraArs={compraTotal} cotizacion={cotizaciones.venta} />
+        </p>
       )}
     </div>
   )

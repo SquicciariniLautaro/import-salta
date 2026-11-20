@@ -8,7 +8,7 @@ import Modal from '../componentes/Modal.jsx'
 import CampoPesos from '../componentes/CampoPesos.jsx'
 import { entregarACuenta } from '../apiAdmin.js'
 import { aDolares, pesos } from '../formato.js'
-import { ElegirPrecio, SelectorConOtro } from './Campos.jsx'
+import { ElegirPrecio, GananciaDeVenta, SelectorConOtro } from './Campos.jsx'
 import { SelectorMedio } from './Cobro.jsx'
 import { usePanel } from './contexto.js'
 import { useAccion } from './useAccion.js'
@@ -39,7 +39,7 @@ export function BarraCarrito() {
 }
 
 function ModalCarrito({ alCerrar }) {
-  const { carrito, cambiarCarrito, vaciarCarrito, cuentas, cotizaciones, recargar } = usePanel()
+  const { carrito, cambiarCarrito, vaciarCarrito, cuentas, cotizaciones, datos, recargar } = usePanel()
   const esSena = carrito.tipo === 'sena'
   const [nombre, setNombre] = useState('')
   const [entrega, setEntrega] = useState(null) // pesos que entrega ahora
@@ -119,6 +119,10 @@ function ModalCarrito({ alCerrar }) {
                   alElegir={(precio) => cambiarPrecio(posicion, precio)}
                 />
               )}
+              <GananciaDeVenta
+                costosUsd={(datos[item.tabla] || []).filter((unidad) => item.ids.includes(unidad.id)).map((unidad) => unidad.costo_usd)}
+                precioArs={item.precio}
+              />
             </li>
           ))}
         </ul>
