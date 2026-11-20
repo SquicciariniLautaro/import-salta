@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import { describir, normalizar } from '../src/servicios/texto.js'
 import { aDiezmilesimos, promediar, promedio, sumar } from '../src/servicios/lotes.js'
 import { familiaDeCelular, marcaDe, ordenarLotes } from '../src/servicios/orden.js'
-import { aDolares, aPesos, precioPorCantidad, resolverTramo } from '../src/servicios/precios.js'
+import { aDolares, aPesos, ganancia, precioPorCantidad, resolverTramo } from '../src/servicios/precios.js'
 import { armarCatalogo } from '../src/servicios/catalogo.js'
 import { agruparPorFamilia, armarStock, resumirStock, tituloDeFamilia } from '../src/servicios/stock.js'
 import { armarCuentas, equiposCubiertos } from '../src/servicios/cuentas.js'
@@ -112,6 +112,12 @@ probar('pesos se redondean a entero y dolares a 4 decimales', () => {
 probar('un tramo en pesos es fijo y uno en dolares sigue la cotizacion', () => {
   assert.deepEqual(resolverTramo({ desde: 3, moneda: 'ars', precio: 5000 }, 1000), { desde: 3, precio_ars: 5000, precio_usd: 5 })
   assert.deepEqual(resolverTramo({ desde: 10, moneda: 'usd', precio: 4 }, 1250), { desde: 10, precio_ars: 5000, precio_usd: 4 })
+})
+probar('ganancia: diferencia en pesos y porcentaje sobre el costo', () => {
+  assert.deepEqual(ganancia(130000, 100000), { ars: 30000, porcentaje: 30 })
+  assert.deepEqual(ganancia(90000, 100000), { ars: -10000, porcentaje: -10 })
+  assert.deepEqual(ganancia(1000, 3000), { ars: -2000, porcentaje: -66.7 })
+  assert.deepEqual(ganancia(5000, 0), { ars: 5000, porcentaje: null })
 })
 probar('precio por cantidad: vale el tramo con el mayor "desde" que no la supere', () => {
   const tramos = [{ desde: 10, moneda: 'usd', precio: 4 }, { desde: 3, moneda: 'ars', precio: 5000 }]

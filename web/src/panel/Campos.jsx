@@ -2,9 +2,10 @@
 // Campos de formulario que se repiten en el panel.
 
 import { useState } from 'react'
-import { aPesos, pesos, soloFecha } from '../formato.js'
+import { aPesos, dolares, pesos, soloFecha } from '../formato.js'
 import { descuentoPara, descuentosDe, precioEnEfectivo } from '../servicios/efectivo.js'
 import { problemaDeDia } from '../servicios/fechas.js'
+import { ganancia } from '../servicios/precios.js'
 import { usePanel } from './contexto.js'
 
 // Desplegable con una ultima opcion "Otro (escribir)". Se usa en lugar de
@@ -70,6 +71,53 @@ export function CampoUsd({ id, valor, alCambiar, cotizacion, disabled }) {
         {valor !== '' && numero >= 0 ? `≈ ${pesos(aPesos(numero, cotizacion))}` : ' '}
       </span>
     </>
+  )
+}
+
+// Al poner los precios de un lote: cuanto se gana por unidad entre el costo y
+// cada precio de venta (con tarjeta, en efectivo si hay descuento y por mayor
+// si se cargo). Todo en pesos: el costo con el dolar de costo y la venta con
+// el de venta, igual que en el stock. Los montos llegan como el texto de los
+// campos, en dolares. tabla: 'celulares' o 'accesorios'.
+export function Ganancia({ costo, precio, mayorista = '', tabla }) {
+  const { configuracion, cotizaciones } = usePanel()
+  const esNumero = (texto) => texto !== '' && Number(texto) >= 0
+  if (!esNumero(costo) || !esNumero(precio)) return null
+
+  const costoArs = aPesos(Number(costo), cotizaciones.costo)
+  const tarjeta = aPesos(Number(precio), cotizaciones.venta)
+  const descuento = descuentoPara(tabla, descuentosDe(configuracion))
+  const efectivo = precioEnEfectivo(tarjeta, descuento)
+  const renglones = [
+    { nombre: 'Con tarjeta', precio: tarjeta },
+    efectivo !== null && { nombre: `En efectivo (−${descuento} %)`, precio: efectivo },
+    esNumero(mayorista) && { nombre: 'Por mayor', precio: aPesos(Number(mayorista), cotizaciones.venta) },
+  ].filter(Boolean)
+
+  return (
+    <div className="rounded-lg border border-neutral-200 px-3 py-2">
+      <p className="text-xs font-semibold text-neutral-700">Ganancia por unidad</p>
+      <ul className="mt-1 space-y-0.5 text-xs">
+        {renglones.map((renglon) => {
+          const { ars, porcentaje } = ganancia(renglon.precio, costoArs)
+          return (
+            <li key={renglon.nombre} className="flex items-baseline justify-between gap-2">
+              <span className="min-w-0 truncate text-neutral-600">{renglon.nombre}</span>
+              <span className={`text-right whitespace-nowrap ${ars < 0 ? 'font-semibold text-red-700' : 'font-semibold text-green-700'}`}>
+                {pesos(ars)}
+                <span className="font-normal text-neutral-500">
+                  {' '}· {dolares(ars / cotizaciones.venta)}
+                  {porcentaje !== null && ` · ${porcentaje > 0 ? '+' : ''}${String(porcentaje).replace('.', ',')} %`}
+                </span>
+              </span>
+            </li>
+          )
+        })}
+      </ul>
+      {renglones.some((renglon) => ganancia(renglon.precio, costoArs).ars < 0) && (
+        <p className="mt-1 text-[11px] text-red-700">Hay un precio por debajo del costo.</p>
+      )}
+    </div>
   )
 }
 

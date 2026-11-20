@@ -45,3 +45,12 @@ export function precioPorCantidad({ tramos, cantidad, precioListaUsd, cotizacion
   const resuelto = resolverTramo(elegido, cotizacion)
   return { precio_ars: resuelto.precio_ars, precio_usd: resuelto.precio_usd }
 }
+
+// Ganancia de vender a "precioArs" algo que costo "costoArs", los dos en pesos.
+// Devuelve { ars, porcentaje }: porcentaje es lo que se gana sobre el costo
+// (costo 100, venta 130 -> 30). null si el costo es 0, porque no hay sobre que.
+export function ganancia(precioArs, costoArs) {
+  const ars = Math.round(Number(precioArs) - Number(costoArs))
+  const porcentaje = Number(costoArs) > 0 ? Math.round((ars / Number(costoArs)) * 1000) / 10 : null
+  return { ars, porcentaje }
+}

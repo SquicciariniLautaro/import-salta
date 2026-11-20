@@ -20,6 +20,11 @@ Import Salta:
   tarjeta. En `Ajustes` el dueño elige el descuento pagando en efectivo (10 %, 20 %,
   30 %...), uno para celulares y otro para accesorios. El catálogo muestra los dos precios
   y al vender aparece el botón *Efectivo*.
+- **Ganancia al poner los precios**: al cargar o editar un lote (y en cada modelo de un
+  lote de compra), debajo de los precios aparece cuánto se gana por unidad entre el costo
+  y cada precio de venta: con tarjeta, en efectivo (si hay descuento) y por mayor (si se
+  cargó), en pesos, en dólares y en % sobre el costo. Si un precio queda por debajo del
+  costo, sale en rojo.
 - **Tarjetas y cuotas**: cada tarjeta le cuesta distinto al local, así que en `Ajustes`
   el dueño carga cada una (o un grupo: *Visa / Mastercard*, *Naranja*...) con su recargo
   en 1 pago y sus planes (3, 6, 9, 12...) con el recargo de cada uno. El catálogo muestra,

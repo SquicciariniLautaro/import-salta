@@ -15,7 +15,7 @@ import { sumar } from '../servicios/lotes.js'
 import { diaDe } from '../servicios/caja.js'
 import { fechaParaLaBase, problemaDeDia } from '../servicios/fechas.js'
 import { describir } from '../servicios/texto.js'
-import { CampoFecha, CampoUsd, Cantidad, SelectorConOtro } from './Campos.jsx'
+import { CampoFecha, CampoUsd, Cantidad, Ganancia, SelectorConOtro } from './Campos.jsx'
 import { CamposDeCelular } from './Formularios.jsx'
 import { CampoFoto } from './FotoLote.jsx'
 import { ponerFotos, subirFotos } from './fotos.js'
@@ -211,6 +211,8 @@ export function ModalCompra({ proveedorInicial = '', alCerrar }) {
                 <CampoUsd valor={modelo.mayorista} alCambiar={(mayorista) => cambiar(posicion, { mayorista })} cotizacion={cotizaciones.venta} />
               </label>
             </div>
+
+            <Ganancia costo={modelo.costo} precio={modelo.precio} mayorista={modelo.mayorista} tabla="celulares" />
 
             <div>
               <p className="etiqueta mb-1">Cantidad</p>
