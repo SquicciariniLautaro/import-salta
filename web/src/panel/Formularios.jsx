@@ -14,7 +14,7 @@ import { comprasPorDia, proveedoresDelLote } from '../servicios/stock.js'
 import { diaDe } from '../servicios/caja.js'
 import { diaDeLaCompraMasNueva, fechaParaLaBase, problemaDeDia } from '../servicios/fechas.js'
 import { describir } from '../servicios/texto.js'
-import { CampoFecha, CampoUsd, Cantidad, SelectorConOtro } from './Campos.jsx'
+import { CampoFecha, CampoUsd, Cantidad, Ganancia, SelectorConOtro } from './Campos.jsx'
 import { CampoFoto } from './FotoLote.jsx'
 import { fotoDelLote, ponerFotos, subirFotos } from './fotos.js'
 import { CampoDeuda, CampoGarantia, CampoVendedor, CamposDeCliente, CamposDeCobro } from './Cobro.jsx'
@@ -225,6 +225,13 @@ export function FormularioLote({ tabla, modo, lote, alCerrar }) {
             </span>
           </label>
         </div>
+
+        <Ganancia
+          costo={costo}
+          precio={precio}
+          mayorista={mayorista !== '' || modo !== 'sumar' || lote.precio_mayorista_usd == null ? mayorista : String(lote.precio_mayorista_usd)}
+          tabla={tabla}
+        />
 
         {cambiaValores && (
           <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
